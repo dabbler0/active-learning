@@ -37,6 +37,46 @@ function saveSettings(patch) {
   return next;
 }
 
+// ── Resizable panels ───────────────────────────────────────────────────────
+
+function initResizePanels() {
+  const main = document.getElementById('main');
+  const s    = loadSettings();
+  let leftW  = s.leftPanelWidth  ?? 280;
+  let rightW = s.rightPanelWidth ?? 360;
+
+  function applyColumns() {
+    main.style.gridTemplateColumns = `${leftW}px 4px 1fr 4px ${rightW}px`;
+  }
+  applyColumns();
+
+  function attachDrag(handleId, onMousedown) {
+    document.getElementById(handleId)?.addEventListener('mousedown', e => {
+      e.preventDefault();
+      document.getElementById(handleId).classList.add('dragging');
+      // Freeze start values at mousedown time
+      const startX     = e.clientX;
+      const startLeft  = leftW;
+      const startRight = rightW;
+
+      const onMove = e2 => { onMousedown(e2.clientX - startX, startLeft, startRight); applyColumns(); };
+      const onUp   = ()  => {
+        document.getElementById(handleId).classList.remove('dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup',   onUp);
+        saveSettings({ leftPanelWidth: leftW, rightPanelWidth: rightW });
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup',   onUp);
+    });
+  }
+
+  // Left handle: drag right → left panel grows
+  attachDrag('resize-left',  (dx, startL) => { leftW  = Math.max(180, Math.min(600, startL + dx)); });
+  // Right handle: drag right → right panel shrinks
+  attachDrag('resize-right', (dx, _sl, startR) => { rightW = Math.max(180, Math.min(700, startR - dx)); });
+}
+
 // ── Tab switching ──────────────────────────────────────────────────────────
 
 function activateTab(tab) {
@@ -171,6 +211,9 @@ async function boot() {
   // ── Export / Import ──
   document.getElementById('export-btn')?.addEventListener('click', exportData);
   document.getElementById('import-btn')?.addEventListener('click', importData);
+
+  // ── Resizable panels ──
+  initResizePanels();
 
   // ── Storage backend info ──
   const beLabel = document.getElementById('backend-label');

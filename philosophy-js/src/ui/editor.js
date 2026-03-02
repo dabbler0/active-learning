@@ -20,7 +20,6 @@ import { markdown } from '@codemirror/lang-markdown';
 import {
   autocompletion,
   completionKeymap,
-  CompletionContext,
 } from '@codemirror/autocomplete';
 
 // ── Autocomplete sources ───────────────────────────────────────────────────
@@ -106,7 +105,7 @@ const editorTheme = EditorView.theme({
   },
   '.cm-line': { paddingLeft: '0' },
   '.cm-activeLine': { backgroundColor: 'rgba(0,0,0,0.04)' },
-  '.cm-gutters': { backgroundColor: '#f8f8f8', borderRight: '1px solid #ddd' },
+  '.cm-gutters': { backgroundColor: '#ece9e3', borderRight: '1px solid #d0cbc2' },
   // Autocomplete popup
   '.cm-tooltip.cm-tooltip-autocomplete': {
     fontFamily: '"DejaVu Sans Mono", "Consolas", "Menlo", monospace',
@@ -162,6 +161,7 @@ export function createEditor(mount, { initialDoc = '', getNotes, getCitations, o
       keymap.of([...defaultKeymap, ...historyKeymap, ...completionKeymap, indentWithTab]),
       lineNumbers(),
       highlightActiveLine(),
+      EditorView.lineWrapping,
       markdown(),
       syntaxHighlighting(defaultHighlightStyle),
       autocompletion({

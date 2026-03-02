@@ -54,7 +54,7 @@ function escHtml(s) {
 
 async function updatePreview(markdown) {
   const previewEl = $('note-preview');
-  if (!previewEl || previewEl.classList.contains('hidden')) return;
+  if (!previewEl) return;
 
   // Collect citations for rendering
   const citekeys = extractCitekeys(markdown);
@@ -270,25 +270,6 @@ export async function initNotes(storage, { getCitations } = {}) {
   $('print-btn')?.addEventListener('click', printCurrentNote);
 
   $('note-search')?.addEventListener('input', e => refreshList(e.target.value));
-
-  // Edit / Preview tab switching
-  document.querySelectorAll('.editor-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.editor-tab').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const pane = btn.dataset.pane;
-      const mountEl = $('cm-editor-mount');
-      const previewEl = $('note-preview');
-      if (pane === 'preview') {
-        mountEl?.classList.add('hidden');
-        previewEl?.classList.remove('hidden');
-        if (_editorView) updatePreview(getEditorContent(_editorView));
-      } else {
-        mountEl?.classList.remove('hidden');
-        previewEl?.classList.add('hidden');
-      }
-    });
-  });
 
   // Note title: save on Enter
   $('note-title')?.addEventListener('keydown', e => {

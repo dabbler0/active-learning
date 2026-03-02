@@ -58,6 +58,9 @@
 
   </aside>
 
+  <!-- Drag handle: left panel ↔ editor -->
+  <div class="resize-handle" id="resize-left"></div>
+
   <!-- CENTRE: editor panel -->
   <section id="editor-panel">
 
@@ -71,17 +74,8 @@
         </div>
       </div>
 
-      <!-- Tabs: Edit / Preview -->
-      <div class="editor-tab-bar">
-        <button class="editor-tab active" data-pane="edit">Edit</button>
-        <button class="editor-tab" data-pane="preview" id="preview-toggle-btn">Preview</button>
-      </div>
-
-      <!-- CodeMirror mount -->
+      <!-- CodeMirror mount (fills remaining space) -->
       <div id="cm-editor-mount" class="cm-mount"></div>
-
-      <!-- Live preview (hidden by default) -->
-      <div id="note-preview" class="note-preview hidden"></div>
 
       <div class="editor-footer">
         <span id="word-count">0 words</span>
@@ -139,17 +133,25 @@
 
   </section>
 
-  <!-- RIGHT: citation details panel -->
+  <!-- Drag handle: editor ↔ right panel -->
+  <div class="resize-handle" id="resize-right"></div>
+
+  <!-- RIGHT: context panel (preview when note open; details when citation open) -->
   <aside id="right-panel">
+
+    <!-- Live markdown preview — shown when a note is being edited -->
+    <div id="right-note-info" class="hidden">
+      <div id="note-preview" class="note-preview"></div>
+    </div>
+
+    <!-- Citation details — shown when a citation is open -->
     <div id="right-cite-info" class="hidden">
       <section class="right-section">
         <h3>Details</h3>
         <dl id="cite-detail-list"></dl>
       </section>
     </div>
-    <div id="right-note-info" class="hidden">
-      <!-- placeholder for future backlinks -->
-    </div>
+
   </aside>
 
 </main>
