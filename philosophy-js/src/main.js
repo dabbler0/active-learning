@@ -10,9 +10,10 @@
  */
 
 import { IndexedDBBackend } from './storage/indexeddb.js';
-import { initNotes, openNote, refreshNoteList } from './ui/notes.js';
+import { initNotes, openNote, refreshNoteList, updateNoteSettings } from './ui/notes.js';
 import { initCitations, updateCitationSettings, openCitation, refreshCitationList } from './ui/citations.js';
 import { initSearch } from './ui/search.js';
+import { CITATION_STYLES } from './services/markdown.js';
 
 // ── Storage ────────────────────────────────────────────────────────────────
 
@@ -133,6 +134,19 @@ function importData() {
 function openSettings() {
   const s = loadSettings();
   document.getElementById('s-author').value = s.author ?? '';
+
+  // Populate citation style select (idempotent)
+  const styleSelect = document.getElementById('s-cite-style');
+  if (styleSelect && !styleSelect.options.length) {
+    CITATION_STYLES.forEach(({ id, label }) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = label;
+      styleSelect.appendChild(opt);
+    });
+  }
+  if (styleSelect) styleSelect.value = s.citationStyle ?? 'authoryear';
+
   document.getElementById('s-crossref').checked     = s.crossrefEnabled     !== false;
   document.getElementById('s-openlibrary').checked  = s.openlibraryEnabled  !== false;
   document.getElementById('settings-modal')?.classList.remove('hidden');
@@ -145,9 +159,11 @@ function closeSettings() {
 function applySettings() {
   const next = saveSettings({
     author:             document.getElementById('s-author').value.trim(),
+    citationStyle:      document.getElementById('s-cite-style')?.value ?? 'authoryear',
     crossrefEnabled:    document.getElementById('s-crossref').checked,
     openlibraryEnabled: document.getElementById('s-openlibrary').checked,
   });
+  updateNoteSettings({ citationStyle: next.citationStyle });
   updateCitationSettings({
     crossrefEnabled:    next.crossrefEnabled,
     openlibraryEnabled: next.openlibraryEnabled,
@@ -177,6 +193,7 @@ async function boot() {
   await Promise.all([
     initNotes(storage, {
       getCitations: () => storage.listCitations(),
+      settings: { citationStyle: settings.citationStyle ?? 'authoryear' },
     }),
     initCitations(storage, {
       crossrefEnabled:    settings.crossrefEnabled !== false,

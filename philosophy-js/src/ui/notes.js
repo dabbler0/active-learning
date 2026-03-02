@@ -17,6 +17,7 @@ let _storage    = null;
 let _editorView = null;
 let _currentNote = null;   // full note object being edited
 let _notes       = [];     // cached list for sidebar
+let _settings    = { citationStyle: 'authoryear' };
 
 // DOM refs (populated by init())
 const $ = id => document.getElementById(id);
@@ -65,7 +66,7 @@ async function updatePreview(markdown) {
       if (citekeys.includes(c.citekey)) citationMap.set(c.citekey, c);
     }
   }
-  previewEl.innerHTML = renderFull(markdown, citationMap, 'authoryear');
+  previewEl.innerHTML = renderFull(markdown, citationMap, _settings.citationStyle);
   // Make internal note-links clickable
   previewEl.querySelectorAll('a.note-link[data-slug]').forEach(a => {
     a.addEventListener('click', e => {
@@ -205,7 +206,7 @@ async function printCurrentNote() {
     for (const c of all) citationMap.set(c.citekey, c);
   }
 
-  const html = renderFull(body, citationMap, 'authoryear');
+  const html = renderFull(body, citationMap, _settings.citationStyle);
   printNote(html, title, themeId, author);
 }
 
@@ -227,10 +228,13 @@ function showToast(msg) {
  * Initialise the notes panel.
  *
  * @param {StorageBackend} storage
- * @param {object} callbacks
- * @param {Function} callbacks.getCitations - async () => Citation[]
+ * @param {object} opts
+ * @param {Function} [opts.getCitations] - async () => Citation[]
+ * @param {object}   [opts.settings]
+ * @param {string}   [opts.settings.citationStyle]
  */
-export async function initNotes(storage, { getCitations } = {}) {
+export async function initNotes(storage, { getCitations, settings = {} } = {}) {
+  _settings = { ..._settings, ...settings };
   _storage = storage;
 
   // Populate print theme selector
@@ -277,6 +281,10 @@ export async function initNotes(storage, { getCitations } = {}) {
   });
 
   await refreshList();
+}
+
+export function updateNoteSettings(patch) {
+  _settings = { ..._settings, ...patch };
 }
 
 export { openNote, refreshList as refreshNoteList };
