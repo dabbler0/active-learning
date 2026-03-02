@@ -272,7 +272,7 @@ function alphaLabel(c) {
   return auth + yr;
 }
 
-function formatBibEntry(c, style, num) {
+export function formatBibEntry(c, style, num) {
   const authors   = c.authors ?? [];
   const year      = c.year;
   const title     = c.title ?? '(no title)';
@@ -377,4 +377,13 @@ export function renderMarkdown(markdown, citations = new Map(), bibStyle = 'auth
 export function renderFull(markdown, citations, bibStyle) {
   const { html, bibliography } = renderMarkdown(markdown, citations, bibStyle);
   return html + bibliography;
+}
+
+/**
+ * Render markdown to raw HTML without any citation substitution or bibliography.
+ * The <cite data-citekey="..."> elements are left in place for the typesetter
+ * to handle (e.g. converting them to footnotes).
+ */
+export function renderRaw(markdown) {
+  return md.render(markdown);
 }

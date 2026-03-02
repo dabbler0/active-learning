@@ -4,12 +4,12 @@
  * Manages the left-panel note list, the note editor view (title + tags + CodeMirror),
  * the live preview panel, and print/PDF output.
  *
- * Depends on: storage backend (injected), createEditor, renderFull, printNote.
+ * Depends on: storage backend (injected), createEditor, renderFull, generatePdf.
  */
 
 import { createEditor, setEditorContent, getEditorContent } from './editor.js';
-import { renderFull, extractCitekeys } from '../services/markdown.js';
-import { printNote, themeList } from '../services/pdf.js';
+import { renderFull, extractCitekeys, renderRaw, formatBibEntry } from '../services/markdown.js';
+import { generatePdf, LAYOUTS } from '../services/typeset/index.js';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -194,20 +194,38 @@ async function deleteCurrentNote() {
 
 async function printCurrentNote() {
   if (!_editorView) return;
-  const body    = getEditorContent(_editorView);
-  const title   = $('note-title').value.trim() || 'Untitled';
-  const themeId = $('print-theme-select')?.value ?? 'academic';
-  const author  = $('compile-author')?.value ?? '';
+  const body   = getEditorContent(_editorView);
+  const title  = $('note-title').value.trim() || 'Untitled';
+  const author = $('compile-author')?.value ?? '';
+  const layout = $('print-theme-select')?.value ?? 'amsart';
+  const date   = new Date().toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  });
 
-  const citekeys = extractCitekeys(body);
-  const citationMap = new Map();
-  if (citekeys.length) {
-    const all = await _storage.listCitations();
-    for (const c of all) citationMap.set(c.citekey, c);
-  }
+  // Load all citations so the typesetter can resolve every citekey
+  const all = await _storage.listCitations();
+  const citationMap = new Map(all.map(c => [c.citekey, c]));
 
-  const html = renderFull(body, citationMap, _settings.citationStyle);
-  printNote(html, title, themeId, author);
+  const layoutCfg = LAYOUTS.find(l => l.id === layout)?.config ?? LAYOUTS[0].config;
+
+  const blob = generatePdf({
+    body,
+    title,
+    author,
+    date,
+    citationMap,
+    citationStyle: _settings.citationStyle,
+    layoutConfig:  layoutCfg,
+    formatBibEntry,
+    renderRaw,
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = `${title.replace(/[^a-z0-9 ]/gi, '').trim() || 'document'}.pdf`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────
@@ -237,10 +255,10 @@ export async function initNotes(storage, { getCitations, settings = {} } = {}) {
   _settings = { ..._settings, ...settings };
   _storage = storage;
 
-  // Populate print theme selector
+  // Populate layout selector (replaces old print-theme-select)
   const themeSelect = $('print-theme-select');
   if (themeSelect) {
-    themeList().forEach(({ id, label }) => {
+    LAYOUTS.forEach(({ id, label }) => {
       const opt = document.createElement('option');
       opt.value = id;
       opt.textContent = label;
