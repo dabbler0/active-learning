@@ -7,6 +7,7 @@ import {
   EditorView, keymap, lineNumbers, drawSelection, highlightActiveLine,
   defaultKeymap, history, historyKeymap, indentWithTab,
   markdown, markdownLanguage,
+  syntaxHighlighting, defaultHighlightStyle,
   autocompletion, completionKeymap,
   searchKeymap,
 } from '/static/lib/codemirror-bundle.js';
@@ -18,63 +19,76 @@ let onWordCountFn = null;
 // ── Autocomplete sources ────────────────────────────────────────────────────
 
 /**
- * [[note: autocomplete — triggered after typing "[["
+ * [[note: autocomplete — triggers as soon as the user types "[[".
+ * Searches the note title/slug and inserts [[note:slug|Title]].
  */
 function noteCompletionSource(context) {
-  // Match [[note: followed by optional partial slug
-  const m = context.matchBefore(/\[\[note:[a-z0-9-]*/);
+  // Match [[ followed by anything that isn't a closing bracket.
+  // The * quantifier means this fires immediately after [[ with no prefix.
+  const m = context.matchBefore(/\[\[[^\]]*$/);
   if (!m) return null;
 
-  const prefix = m.text.slice('[[note:'.length);
+  // Text after the opening [[ is the search query
+  const query = m.text.slice(2).trim();
 
-  return fetch(`/api/v1/search/notes?q=${encodeURIComponent(prefix)}&limit=10`)
+  return fetch(`/api/v1/search/notes?q=${encodeURIComponent(query)}&limit=10`)
     .then(r => r.json())
-    .then(notes => ({
-      from: m.from,
-      options: notes.map(n => ({
-        label: `[[note:${n.slug}|${n.title}]]`,
-        displayLabel: n.title,
-        detail: n.slug,
-        type: 'keyword',
-        apply: (view, completion, from, to) => {
-          view.dispatch({
-            changes: { from, to, insert: `[[note:${n.slug}|${n.title}]]` },
-          });
-        },
-      })),
-    }));
+    .then(notes => {
+      if (!notes.length) return null;
+      return {
+        from: m.from,            // replace from the opening [[
+        filter: false,           // we do our own server-side filtering
+        options: notes.map(n => ({
+          label: `[[note:${n.slug}|${n.title}]]`,
+          displayLabel: n.title,
+          detail: n.slug,
+          type: 'keyword',
+          apply(view, _completion, from, to) {
+            view.dispatch({
+              changes: { from, to, insert: `[[note:${n.slug}|${n.title}]]` },
+            });
+          },
+        })),
+      };
+    });
 }
 
 /**
- * [@ autocomplete — triggered after typing "[@"
+ * [@ autocomplete — triggers as soon as the user types "[@".
+ * Searches the citation database and inserts [@citekey].
  */
 function citeCompletionSource(context) {
-  // Match [@ followed by optional partial citekey
-  const m = context.matchBefore(/\[@[\w:-]*/);
+  // Match [@ followed by a partial citekey (word chars, colon, hyphen).
+  // The * quantifier means this fires immediately after [@.
+  const m = context.matchBefore(/\[@[\w:-]*$/);
   if (!m) return null;
 
-  const prefix = m.text.slice(2); // strip [@
+  const query = m.text.slice(2); // strip [@
 
-  return fetch(`/api/v1/search/citations?q=${encodeURIComponent(prefix)}&limit=10`)
+  return fetch(`/api/v1/search/citations?q=${encodeURIComponent(query)}&limit=10`)
     .then(r => r.json())
-    .then(cites => ({
-      from: m.from,
-      options: cites.map(c => {
-        const authorStr = c.authors.length ? c.authors[0].split(',')[0] : '';
-        const detail = [authorStr, c.year].filter(Boolean).join(', ');
-        return {
-          label: `[@${c.citekey}]`,
-          displayLabel: c.citekey,
-          detail: detail ? `${c.title.slice(0,40)} — ${detail}` : c.title.slice(0,50),
-          type: 'variable',
-          apply: (view, completion, from, to) => {
-            view.dispatch({
-              changes: { from, to, insert: `[@${c.citekey}]` },
-            });
-          },
-        };
-      }),
-    }));
+    .then(cites => {
+      if (!cites.length) return null;
+      return {
+        from: m.from,
+        filter: false,
+        options: cites.map(c => {
+          const authorStr = c.authors.length ? c.authors[0].split(',')[0] : '';
+          const meta = [authorStr, c.year].filter(Boolean).join(', ');
+          return {
+            label: `[@${c.citekey}]`,
+            displayLabel: c.citekey,
+            detail: meta ? `${c.title.slice(0, 40)} — ${meta}` : c.title.slice(0, 50),
+            type: 'variable',
+            apply(view, _completion, from, to) {
+              view.dispatch({
+                changes: { from, to, insert: `[@${c.citekey}]` },
+              });
+            },
+          };
+        }),
+      };
+    });
 }
 
 // ── Word count ──────────────────────────────────────────────────────────────
@@ -94,21 +108,26 @@ const editorTheme = EditorView.theme({
   },
   '.cm-content': {
     padding: '16px 20px',
-    fontFamily: '"Linux Libertine O", "Georgia", serif',
-    lineHeight: '1.7',
+    fontFamily: '"DejaVu Sans Mono", "Consolas", "Menlo", monospace',
+    lineHeight: '1.65',
     caretColor: 'var(--accent)',
+  },
+  '.cm-scroller': {
+    fontFamily: '"DejaVu Sans Mono", "Consolas", "Menlo", monospace',
   },
   '.cm-focused .cm-cursor': {
     borderLeftColor: 'var(--accent)',
   },
-  '.cm-selectionBackground': {
+  '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
     background: 'rgba(74, 124, 110, 0.2)',
   },
   '.cm-activeLine': {
     background: 'rgba(0,0,0,0.03)',
   },
-  '.cm-scroller': {
-    fontFamily: '"Linux Libertine O", "Georgia", serif',
+  '.cm-gutters': {
+    background: 'var(--bg2)',
+    border: 'none',
+    color: 'var(--text2)',
   },
   '.cm-tooltip': {
     background: 'var(--bg2)',
@@ -122,6 +141,7 @@ const editorTheme = EditorView.theme({
   '.cm-completionDetail': {
     color: 'var(--text2)',
     fontSize: '11px',
+    fontStyle: 'normal',
   },
   '.cm-completionLabel': {
     fontFamily: '"DejaVu Sans Mono", monospace',
@@ -157,6 +177,7 @@ export function initEditor({ mountId, onSave, onWordCount }) {
       drawSelection(),
       highlightActiveLine(),
       markdown({ base: markdownLanguage }),
+      syntaxHighlighting(defaultHighlightStyle),
       autocompletion({
         override: [noteCompletionSource, citeCompletionSource],
         activateOnTyping: true,
