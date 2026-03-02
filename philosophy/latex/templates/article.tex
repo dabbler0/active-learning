@@ -1,0 +1,84 @@
+% Philosophy Notes — Article template
+% Standard academic article style
+\documentclass[$if(fontsize)$$fontsize$$else$12pt$endif$, $if(papersize)$$papersize$$else$letterpaper$endif$]{article}
+
+%% Geometry
+\usepackage[margin=1in]{geometry}
+
+%% Font (XeLaTeX)
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\setmainfont{Linux Libertine O}[
+  BoldFont = Linux Libertine O Bold,
+  ItalicFont = Linux Libertine O Italic,
+  BoldItalicFont = Linux Libertine O Bold Italic,
+]
+\setsansfont{Linux Biolinum O}
+\setmonofont{DejaVu Sans Mono}[Scale=0.85]
+
+%% Encoding and language
+\usepackage{polyglossia}
+\setdefaultlanguage{english}
+
+%% Bibliography
+$if(biblatex)$
+\usepackage[style=$if(bibstyle)$$bibstyle$$else$authoryear$endif$, backend=biber, sorting=nyt]{biblatex}
+$if(bibliography)$\addbibresource{$bibliography$}$endif$
+$endif$
+
+%% Hyperlinks
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black,
+  pdfauthor={$author$},
+  pdftitle={$title$},
+}
+
+%% Quotations
+\usepackage{csquotes}
+
+%% Graphics
+\usepackage{graphicx}
+
+%% Lists
+\usepackage{enumitem}
+
+%% Footnotes
+\usepackage[perpage, bottom]{footmisc}
+
+%% Shared macros
+\usepackage[$if(sty_path)$$sty_path$$else$$endif$]{philosophy}
+
+%% Header/footer
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\itshape $title$}
+\fancyhead[R]{\small $author$}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+%% Title
+$if(title)$
+\title{$title$$if(subtitle)$\\\large $subtitle$$endif$}
+$endif$
+$if(author)$\author{$author$$if(affiliation)$\\[0.5em]\normalsize\textit{$affiliation$}$endif$}$endif$
+$if(date)$\date{$date$}$else$\date{}$endif$
+
+\begin{document}
+
+$if(title)$\maketitle$endif$
+$if(abstract)$
+\begin{abstract}
+$abstract$
+\end{abstract}
+$endif$
+
+$body$
+
+$if(biblatex)$\printbibliography$endif$
+
+\end{document}

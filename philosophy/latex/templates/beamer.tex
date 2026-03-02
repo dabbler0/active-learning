@@ -1,0 +1,52 @@
+% Philosophy Notes — Beamer presentation template
+\documentclass[$if(fontsize)$$fontsize$$else$11pt$endif$]{beamer}
+
+%% Theme
+\usetheme{Madrid}
+\usecolortheme{default}
+\usefonttheme{serif}
+
+%% Font
+\usepackage{fontspec}
+\setmainfont{Linux Libertine O}
+\setsansfont{Linux Biolinum O}
+
+%% Language
+\usepackage{polyglossia}
+\setdefaultlanguage{english}
+
+%% Bibliography
+$if(biblatex)$
+\usepackage[style=$if(bibstyle)$$bibstyle$$else$authoryear$endif$, backend=biber]{biblatex}
+$if(bibliography)$\addbibresource{$bibliography$}$endif$
+$endif$
+
+%% Hyperlinks
+\usepackage{hyperref}
+
+%% Quotations
+\usepackage{csquotes}
+
+%% Shared macros
+\usepackage[$if(sty_path)$$sty_path$$else$$endif$]{philosophy}
+
+%% Title information
+$if(title)$\title{$title$}$endif$
+$if(subtitle)$\subtitle{$subtitle$}$endif$
+$if(author)$\author{$author$}$endif$
+$if(institute)$\institute{$institute$}$endif$
+$if(date)$\date{$date$}$else$\date{\today}$endif$
+
+\begin{document}
+
+$if(title)$\begin{frame}\titlepage\end{frame}$endif$
+
+$body$
+
+$if(biblatex)$
+\begin{frame}[allowframebreaks]{References}
+\printbibliography
+\end{frame}
+$endif$
+
+\end{document}

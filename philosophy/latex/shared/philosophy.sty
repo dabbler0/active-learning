@@ -1,0 +1,24 @@
+% philosophy.sty — shared macros for all Philosophy Notes templates
+\ProvidesPackage{philosophy}[2024/01/01 Philosophy Notes shared macros]
+
+% Typography helpers
+\newcommand{\eg}{\textit{e.g.},\ }
+\newcommand{\ie}{\textit{i.e.},\ }
+\newcommand{\cf}{\textit{cf.}\ }
+\newcommand{\viz}{\textit{viz.}\ }
+
+% Technical term emphasis
+\newcommand{\term}[1]{\textit{#1}}
+\newcommand{\name}[1]{\textsc{#1}}
+
+% Greek text (requires fontspec and a suitable font)
+\newcommand{\gk}[1]{{\selectlanguage{greek}#1}}
+
+% Quotation helpers
+\newcommand{\blockq}[1]{\begin{quote}\textit{#1}\end{quote}}
+
+% Section mark
+\newcommand{\sectionmark}{\S}
+
+% Hyperref note links style
+\newcommand{\notelink}[2]{\href{#1}{#2}}
