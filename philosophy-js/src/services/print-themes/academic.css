@@ -1,0 +1,62 @@
+/* Academic print theme — standard 1-inch margins, serif body */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@page {
+  size: letter;
+  margin: 1in 1in 1.1in 1in;
+}
+
+body {
+  font-family: "Linux Libertine O", "Libertine", "Georgia", "Times New Roman", serif;
+  font-size: 12pt;
+  line-height: 1.6;
+  color: #000;
+  background: #fff;
+}
+
+.print-header {
+  text-align: center;
+  margin-bottom: 2em;
+  padding-bottom: 1em;
+  border-bottom: 1px solid #ccc;
+}
+
+.print-title  { font-size: 18pt; font-weight: bold; margin-bottom: 0.3em; }
+.print-author { font-size: 12pt; font-style: italic; margin-bottom: 0.2em; }
+.print-date   { font-size: 10pt; color: #555; }
+
+.print-body h1 { font-size: 16pt; margin: 1.2em 0 0.4em; }
+.print-body h2 { font-size: 14pt; margin: 1em 0 0.4em; }
+.print-body h3 { font-size: 12pt; margin: 0.8em 0 0.3em; }
+.print-body p  { margin-bottom: 0.8em; text-align: justify; }
+
+.print-body blockquote {
+  margin: 1em 2em;
+  padding-left: 1em;
+  border-left: 3px solid #bbb;
+  font-style: italic;
+}
+
+.print-body pre  { font-size: 9pt; white-space: pre-wrap; background: #f5f5f5; padding: 0.5em; margin: 0.8em 0; }
+.print-body code { font-size: 9pt; font-family: "Courier New", monospace; background: #f5f5f5; padding: 0 0.2em; }
+.print-body pre code { background: none; padding: 0; }
+
+.print-body ul, .print-body ol { margin: 0.5em 0 0.5em 2em; }
+.print-body li { margin-bottom: 0.2em; }
+
+.print-body table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 10pt; }
+.print-body th, .print-body td { border: 1px solid #bbb; padding: 0.3em 0.6em; }
+.print-body th { background: #eee; font-weight: bold; }
+
+cite.citation { font-style: normal; }
+
+.bibliography { margin-top: 2em; padding-top: 1em; border-top: 1px solid #ccc; }
+.bibliography h2 { font-size: 14pt; margin-bottom: 0.8em; }
+.bibliography ol { padding-left: 2em; }
+.bibliography li { margin-bottom: 0.5em; font-size: 11pt; }
+.bib-authors { font-weight: normal; }
+.bib-num { font-weight: bold; }
+
+.note-link { color: #000; text-decoration: underline dotted; }
+
+a { color: #000; }

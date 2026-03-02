@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Philosophy Notes</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ TOOLBAR -->
+<header id="toolbar">
+  <span class="app-name">Philosophy Notes</span>
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="notes">Notes</button>
+    <button class="tab-btn" data-tab="citations">Citations</button>
+    <button class="tab-btn" data-tab="search">Search</button>
+  </nav>
+  <div class="toolbar-right">
+    <span id="backend-label" class="backend-badge" title="Storage backend"></span>
+    <button id="export-btn" class="btn-ghost" title="Export all data as JSON">Export</button>
+    <button id="import-btn" class="btn-ghost" title="Import data from JSON file">Import</button>
+    <button id="settings-btn" title="Settings">⚙</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════ MAIN PANELS -->
+<main id="main">
+
+  <!-- LEFT: list panel -->
+  <aside id="left-panel">
+
+    <!-- Notes list -->
+    <div id="notes-panel" class="list-panel">
+      <div class="panel-header">
+        <input type="search" id="note-search" placeholder="Filter notes…" autocomplete="off" />
+        <button id="new-note-btn" class="btn-primary" title="New note">+ Note</button>
+      </div>
+      <ul id="note-list" class="item-list"></ul>
+    </div>
+
+    <!-- Citations list -->
+    <div id="citations-panel" class="list-panel hidden">
+      <div class="panel-header">
+        <input type="search" id="cite-search" placeholder="Filter citations…" autocomplete="off" />
+        <button id="new-cite-btn" class="btn-primary" title="Add citation">+ Citation</button>
+      </div>
+      <ul id="cite-list" class="item-list"></ul>
+    </div>
+
+    <!-- Search panel -->
+    <div id="search-panel" class="list-panel hidden">
+      <div class="panel-header">
+        <input type="search" id="global-search" placeholder="Search everything…" autocomplete="off" />
+      </div>
+      <div id="search-results"></div>
+    </div>
+
+  </aside>
+
+  <!-- CENTRE: editor panel -->
+  <section id="editor-panel">
+
+    <!-- Note editor -->
+    <div id="note-editor" class="editor-view hidden">
+      <div class="editor-header">
+        <input type="text" id="note-title" placeholder="Note title…" autocomplete="off" />
+        <div class="tag-row">
+          <span class="tag-label">Tags:</span>
+          <input type="text" id="note-tags" placeholder="comma-separated tags…" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- Tabs: Edit / Preview -->
+      <div class="editor-tab-bar">
+        <button class="editor-tab active" data-pane="edit">Edit</button>
+        <button class="editor-tab" data-pane="preview" id="preview-toggle-btn">Preview</button>
+      </div>
+
+      <!-- CodeMirror mount -->
+      <div id="cm-editor-mount" class="cm-mount"></div>
+
+      <!-- Live preview (hidden by default) -->
+      <div id="note-preview" class="note-preview hidden"></div>
+
+      <div class="editor-footer">
+        <span id="word-count">0 words</span>
+        <div class="editor-actions">
+          <button id="delete-note-btn" class="btn-ghost btn-danger" title="Delete note">Delete</button>
+          <button id="save-btn" class="btn-primary">Save</button>
+          <div class="print-wrapper">
+            <select id="print-theme-select" title="Print theme"></select>
+            <input type="text" id="compile-author" placeholder="Author (for print)" class="author-input" />
+            <button id="print-btn" class="btn-secondary">Print / PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Citation editor -->
+    <div id="citation-editor" class="editor-view hidden">
+      <div class="editor-header">
+        <h2 id="cite-title-display">Citation</h2>
+        <span id="cite-citekey-display" class="citekey-badge"></span>
+      </div>
+      <div class="cite-fields">
+        <label>BibTeX (editable)</label>
+        <textarea id="cite-bibtex-edit" rows="10" spellcheck="false" class="bibtex-textarea"></textarea>
+        <div class="tag-row">
+          <span class="tag-label">Tags:</span>
+          <input type="text" id="cite-tags" placeholder="comma-separated tags…" autocomplete="off" />
+        </div>
+        <div class="btn-row">
+          <button id="delete-cite-btn" class="btn-ghost btn-danger">Delete</button>
+          <button id="save-cite-btn" class="btn-primary">Save Citation</button>
+        </div>
+      </div>
+      <div class="cite-note-section">
+        <h3>Annotation Note</h3>
+        <textarea id="cite-note-edit" rows="6" placeholder="Optional notes about this reference…" class="annotation-textarea"></textarea>
+        <button id="save-cite-note-btn" class="btn-secondary">Save Annotation</button>
+      </div>
+    </div>
+
+    <!-- Welcome screen -->
+    <div id="welcome-screen">
+      <div class="welcome-content">
+        <h1>Philosophy Notes</h1>
+        <p>Select a note or citation from the left panel, or create a new one.</p>
+        <div class="welcome-shortcuts">
+          <kbd>Ctrl+S</kbd> Save &nbsp;&nbsp;
+          <kbd>[[</kbd> Link note &nbsp;&nbsp;
+          <kbd>[@</kbd> Cite reference
+        </div>
+        <p class="welcome-hint">All data is stored locally in your browser (IndexedDB).<br>
+          Use <strong>Export</strong> / <strong>Import</strong> in the toolbar to back up your data.</p>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- RIGHT: citation details panel -->
+  <aside id="right-panel">
+    <div id="right-cite-info" class="hidden">
+      <section class="right-section">
+        <h3>Details</h3>
+        <dl id="cite-detail-list"></dl>
+      </section>
+    </div>
+    <div id="right-note-info" class="hidden">
+      <!-- placeholder for future backlinks -->
+    </div>
+  </aside>
+
+</main>
+
+<!-- ═══════════════════════════════════════════ MODALS -->
+
+<!-- Add Citation modal -->
+<div id="add-cite-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Add Citation</h2>
+    <p class="modal-hint">Paste a BibTeX entry, DOI, ISBN, or any citation string.</p>
+    <textarea id="add-cite-input" rows="6"
+      placeholder="@article{key,&#10;  title = {...},&#10;  ...&#10;}&#10;&#10;or a DOI: 10.XXXX/XXXX&#10;or an ISBN: 978-..."></textarea>
+    <div id="add-cite-parsed" class="hidden">
+      <h3>Parsed BibTeX (edit before saving):</h3>
+      <textarea id="add-cite-bibtex" rows="10" class="bibtex-textarea"></textarea>
+      <p id="add-cite-warnings" class="warnings hidden"></p>
+    </div>
+    <div class="modal-footer">
+      <button id="parse-cite-btn" class="btn-primary">Parse</button>
+      <button id="confirm-cite-btn" class="btn-primary hidden">Save Citation</button>
+      <button id="cancel-cite-btn" class="btn-ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div id="settings-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Settings</h2>
+    <div class="setting-row">
+      <label for="s-author">Default author (for print)</label>
+      <input type="text" id="s-author" />
+    </div>
+    <div class="setting-row">
+      <label>CrossRef lookup (DOI → metadata)</label>
+      <input type="checkbox" id="s-crossref" checked />
+    </div>
+    <div class="setting-row">
+      <label>OpenLibrary lookup (ISBN → metadata)</label>
+      <input type="checkbox" id="s-openlibrary" checked />
+    </div>
+    <div class="modal-footer">
+      <button id="save-settings-btn" class="btn-primary">Save</button>
+      <button id="cancel-settings-btn" class="btn-ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="toast hidden"></div>
+
+<script type="module" src="bundle.js"></script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+/**
+ * Markdown rendering with inline citation and note-link support.
+ *
+ * Citation syntax: [@citekey] or [@citekey, p. 23]
+ * Note-link syntax: [[note:slug|Display Text]] or [[note:slug]]
+ *
+ * Two-pass approach:
+ *  1. Pre-scan the markdown for all citekeys
+ *  2. Resolve citation metadata from the provided citations map
+ *  3. Render with inline substitution + appended bibliography
+ */
+
+import MarkdownIt from 'markdown-it';
+
+const md = new MarkdownIt({
+  html:    false,
+  linkify: true,
+  typographer: true,
+});
+
+// ── Custom inline rules ────────────────────────────────────────────────────
+
+/**
+ * Rule for [@citekey] and [@citekey, p. N]
+ * Produces: <cite class="citation" data-citekey="KEY">...</cite>
+ */
+md.core.ruler.after('linkify', 'citations', state => {
+  for (const blockToken of state.tokens) {
+    if (blockToken.type !== 'inline') continue;
+    const children = [];
+    for (const tok of blockToken.children) {
+      if (tok.type !== 'text') { children.push(tok); continue; }
+
+      let lastIdx = 0;
+      const re = /\[@([^\]@,]+?)(?:,\s*([^\]]+))?\]/g;
+      let m;
+      while ((m = re.exec(tok.content)) !== null) {
+        if (m.index > lastIdx) {
+          const t = new state.Token('text', '', 0);
+          t.content = tok.content.slice(lastIdx, m.index);
+          children.push(t);
+        }
+        const [full, key, locator] = m;
+        const open  = new state.Token('cite_open',  'cite', 1);
+        open.attrSet('class', 'citation');
+        open.attrSet('data-citekey', key.trim());
+        const inner = new state.Token('text', '', 0);
+        inner.content = locator ? `${key.trim()}, ${locator.trim()}` : key.trim();
+        const close = new state.Token('cite_close', 'cite', -1);
+        children.push(open, inner, close);
+        lastIdx = m.index + full.length;
+      }
+      if (lastIdx < tok.content.length) {
+        const t = new state.Token('text', '', 0);
+        t.content = tok.content.slice(lastIdx);
+        children.push(t);
+      }
+    }
+    blockToken.children = children;
+  }
+});
+
+/**
+ * Rule for [[note:slug|Display]] and [[note:slug]]
+ * Produces: <a class="note-link" data-slug="...">Display</a>
+ */
+md.core.ruler.after('citations', 'note_links', state => {
+  for (const blockToken of state.tokens) {
+    if (blockToken.type !== 'inline') continue;
+    const children = [];
+    for (const tok of blockToken.children) {
+      if (tok.type !== 'text') { children.push(tok); continue; }
+
+      let lastIdx = 0;
+      const re = /\[\[note:([a-z0-9-]+)(?:\|([^\]]+))?\]\]/g;
+      let m;
+      while ((m = re.exec(tok.content)) !== null) {
+        if (m.index > lastIdx) {
+          const t = new state.Token('text', '', 0);
+          t.content = tok.content.slice(lastIdx, m.index);
+          children.push(t);
+        }
+        const [full, slug, display] = m;
+        const open  = new state.Token('link_open',  'a', 1);
+        open.attrSet('class', 'note-link');
+        open.attrSet('data-slug', slug);
+        open.attrSet('href', '#');
+        const inner = new state.Token('text', '', 0);
+        inner.content = display || slug;
+        const close = new state.Token('link_close', 'a', -1);
+        children.push(open, inner, close);
+        lastIdx = m.index + full.length;
+      }
+      if (lastIdx < tok.content.length) {
+        const t = new state.Token('text', '', 0);
+        t.content = tok.content.slice(lastIdx);
+        children.push(t);
+      }
+    }
+    blockToken.children = children;
+  }
+});
+
+// ── Citation resolution ────────────────────────────────────────────────────
+
+/** Extract all unique citekeys from a markdown string. */
+export function extractCitekeys(markdown) {
+  const re = /\[@([^\]@,]+)/g;
+  const keys = new Set();
+  let m;
+  while ((m = re.exec(markdown)) !== null) keys.add(m[1].trim());
+  return [...keys];
+}
+
+/**
+ * Given rendered HTML containing <cite data-citekey="..."> elements,
+ * replace their inner text with formatted citation labels and return
+ * a bibliography section to append.
+ *
+ * @param {string} html       - rendered HTML from md.render()
+ * @param {Map<string,object>} citationMap - citekey → citation object
+ * @param {string} style      - 'authoryear' | 'numeric' | 'alpha'
+ */
+export function applyCitations(html, citationMap, style = 'authoryear') {
+  if (!citationMap.size) return { html, bibliography: '' };
+
+  // Collect cited keys in order of appearance
+  const orderedKeys = [];
+  const seen = new Set();
+  const scanRe = /data-citekey="([^"]+)"/g;
+  let m;
+  while ((m = scanRe.exec(html)) !== null) {
+    const k = m[1];
+    if (!seen.has(k)) { seen.add(k); orderedKeys.push(k); }
+  }
+
+  // Build index (1-based for numeric/alpha)
+  const index = new Map(orderedKeys.map((k, i) => [k, i + 1]));
+
+  function label(key, locator) {
+    const c = citationMap.get(key);
+    if (!c) return `${key}${locator ? `, ${locator}` : ''}`;
+    if (style === 'numeric') {
+      return `[${index.get(key) ?? '?'}]${locator ? `, ${locator}` : ''}`;
+    }
+    if (style === 'alpha') {
+      const alpha = alphaLabel(c);
+      return `[${alpha}]${locator ? `, ${locator}` : ''}`;
+    }
+    // authoryear (default)
+    const auth = shortAuthor(c);
+    const yr   = c.year ?? 'n.d.';
+    return locator ? `(${auth}, ${yr}, ${locator})` : `(${auth}, ${yr})`;
+  }
+
+  // Replace <cite ...>KEY, locator</cite> with formatted text
+  const replaced = html.replace(
+    /<cite class="citation" data-citekey="([^"]+)">([^<]*)<\/cite>/g,
+    (_, key, inner) => {
+      // inner is "key" or "key, locator"
+      const comma = inner.indexOf(',');
+      const locator = comma > -1 ? inner.slice(comma + 1).trim() : null;
+      return `<cite class="citation" data-citekey="${key}">${label(key, locator)}</cite>`;
+    }
+  );
+
+  // Build bibliography
+  const bibLines = orderedKeys
+    .map(key => {
+      const c = citationMap.get(key);
+      if (!c) return `<li id="ref-${key}"><code>${key}</code> — not found in library</li>`;
+      return `<li id="ref-${key}">${formatBibEntry(c, style, index.get(key))}</li>`;
+    })
+    .join('\n');
+
+  const bibliography = bibLines
+    ? `<section class="bibliography"><h2>References</h2><ol>${bibLines}</ol></section>`
+    : '';
+
+  return { html: replaced, bibliography };
+}
+
+function shortAuthor(c) {
+  const authors = c.authors ?? [];
+  if (!authors.length) return c.title?.slice(0, 20) ?? c.citekey;
+  const first = authors[0].split(',')[0].trim();
+  return authors.length > 1 ? `${first} et al.` : first;
+}
+
+function alphaLabel(c) {
+  const authors = c.authors ?? [];
+  const auth = authors.length
+    ? authors[0].split(',')[0].trim().slice(0, 3)
+    : (c.title ?? c.citekey).slice(0, 3);
+  const yr = c.year ? String(c.year).slice(-2) : 'nd';
+  return auth + yr;
+}
+
+function formatBibEntry(c, style, num) {
+  const authors = (c.authors ?? []).join(', ') || 'Unknown';
+  const year    = c.year ? `(${c.year})` : '(n.d.)';
+  const title   = c.title ?? '(no title)';
+  const prefix  = style === 'numeric'
+    ? `<span class="bib-num">[${num}]</span> `
+    : style === 'alpha'
+    ? `<span class="bib-num">[${alphaLabel(c)}]</span> `
+    : '';
+  return `${prefix}<span class="bib-authors">${authors}</span> ${year}. <em>${title}</em>.`;
+}
+
+// ── Main render function ───────────────────────────────────────────────────
+
+/**
+ * Render markdown to an HTML object ready to inject into the DOM.
+ *
+ * @param {string}            markdown
+ * @param {Map<string,object>|object} citations  - Map or plain object of citekey→citation
+ * @param {string}            bibStyle           - 'authoryear'|'numeric'|'alpha'
+ * @returns {{ html: string, bibliography: string, citekeys: string[] }}
+ */
+export function renderMarkdown(markdown, citations = new Map(), bibStyle = 'authoryear') {
+  const citationMap = citations instanceof Map
+    ? citations
+    : new Map(Object.entries(citations));
+
+  const rawHtml = md.render(markdown);
+  const citekeys = extractCitekeys(markdown);
+  const { html, bibliography } = applyCitations(rawHtml, citationMap, bibStyle);
+
+  return { html, bibliography, citekeys };
+}
+
+/**
+ * Render markdown and return a single combined HTML string for display.
+ */
+export function renderFull(markdown, citations, bibStyle) {
+  const { html, bibliography } = renderMarkdown(markdown, citations, bibStyle);
+  return html + bibliography;
+}

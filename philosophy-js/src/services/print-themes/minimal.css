@@ -1,0 +1,48 @@
+/* Minimal print theme — no decorations, tight margins, small text */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@page {
+  size: letter;
+  margin: 0.75in;
+}
+
+body {
+  font-family: "Helvetica Neue", Arial, "Liberation Sans", sans-serif;
+  font-size: 10pt;
+  line-height: 1.45;
+  color: #000;
+  background: #fff;
+}
+
+.print-header { margin-bottom: 1em; }
+.print-title  { font-size: 13pt; font-weight: bold; }
+.print-author { font-size: 10pt; margin-top: 0.15em; }
+.print-date   { font-size: 9pt; color: #555; }
+
+.print-body h1 { font-size: 12pt; font-weight: bold; margin: 1em 0 0.3em; }
+.print-body h2 { font-size: 11pt; font-weight: bold; margin: 0.8em 0 0.25em; }
+.print-body h3 { font-size: 10pt; font-weight: bold; margin: 0.6em 0 0.2em; }
+.print-body p  { margin-bottom: 0.5em; }
+
+.print-body blockquote {
+  margin: 0.5em 1.5em;
+  border-left: 2px solid #ccc;
+  padding-left: 0.5em;
+}
+
+.print-body pre  { font-size: 8pt; white-space: pre-wrap; margin: 0.5em 0; }
+.print-body code { font-size: 8pt; font-family: monospace; }
+.print-body pre code { background: none; }
+
+.print-body ul, .print-body ol { margin: 0.3em 0 0.4em 1.5em; }
+.print-body li { margin-bottom: 0.1em; }
+
+cite.citation { font-style: normal; }
+
+.bibliography { margin-top: 1.5em; padding-top: 0.5em; border-top: 1px solid #ccc; font-size: 9pt; }
+.bibliography h2 { font-size: 10pt; margin-bottom: 0.4em; }
+.bibliography ol { padding-left: 1.5em; }
+.bibliography li { margin-bottom: 0.3em; }
+
+.note-link { color: #000; }
+a { color: #000; }

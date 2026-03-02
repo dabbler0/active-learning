@@ -1,0 +1,70 @@
+/* Draft print theme — double-spaced, wide left margin for annotations, line numbers */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@page {
+  size: letter;
+  margin: 1in 1in 1.1in 1.75in;
+}
+
+body {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 11pt;
+  line-height: 2;
+  color: #000;
+  background: #fff;
+  counter-reset: line-counter;
+}
+
+.print-header {
+  margin-bottom: 2em;
+  border-bottom: 2px solid #000;
+  padding-bottom: 0.5em;
+}
+
+.print-title  { font-size: 14pt; font-weight: bold; }
+.print-author { font-size: 11pt; margin-top: 0.2em; }
+.print-date   { font-size: 10pt; margin-top: 0.2em; }
+.print-header p { margin: 0.1em 0; }
+
+.print-body h1 { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 1.5em 0 0.5em; }
+.print-body h2 { font-size: 12pt; font-weight: bold; margin: 1.2em 0 0.4em; text-decoration: underline; }
+.print-body h3 { font-size: 11pt; font-weight: bold; margin: 1em 0 0.3em; }
+
+.print-body p {
+  margin-bottom: 0;
+  text-align: left;
+}
+
+.print-body blockquote {
+  margin: 1em 1em 1em 0;
+  padding-left: 2em;
+  border-left: 4px solid #999;
+}
+
+.print-body pre  { white-space: pre-wrap; margin: 0.8em 0; }
+.print-body code { background: #eee; padding: 0 0.2em; }
+.print-body pre code { background: none; padding: 0; }
+
+.print-body ul, .print-body ol { margin: 0.5em 0 0.5em 2.5em; }
+.print-body li { margin-bottom: 0; }
+
+/* Draft marker in top-right */
+body::before {
+  content: "DRAFT";
+  position: fixed;
+  top: 0.3in;
+  right: 0.3in;
+  font-size: 9pt;
+  color: #aaa;
+  letter-spacing: 0.1em;
+}
+
+cite.citation { font-style: normal; border-bottom: 1px dotted #666; }
+
+.bibliography { margin-top: 2em; border-top: 1px solid #999; padding-top: 0.8em; }
+.bibliography h2 { font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5em; }
+.bibliography ol { padding-left: 2em; }
+.bibliography li { margin-bottom: 0.5em; font-size: 10pt; }
+
+.note-link { color: #000; text-decoration: underline; }
+a { color: #000; }

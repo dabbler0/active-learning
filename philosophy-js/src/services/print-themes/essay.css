@@ -1,0 +1,59 @@
+/* Essay print theme — wide margins, EB Garamond, 1.5-spaced, readable */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@page {
+  size: letter;
+  margin: 1.25in 1.5in 1.4in 1.5in;
+}
+
+body {
+  font-family: "EB Garamond", "Garamond", "Palatino Linotype", "Book Antiqua", serif;
+  font-size: 12pt;
+  line-height: 1.75;
+  color: #111;
+  background: #fff;
+}
+
+.print-header {
+  text-align: center;
+  margin-bottom: 2.5em;
+}
+
+.print-title  { font-size: 20pt; font-weight: bold; letter-spacing: 0.02em; margin-bottom: 0.4em; }
+.print-author { font-size: 11pt; font-style: italic; margin-bottom: 0.2em; }
+.print-date   { font-size: 10pt; color: #666; }
+
+.print-body h1 { font-size: 17pt; margin: 1.4em 0 0.5em; }
+.print-body h2 { font-size: 14pt; margin: 1.2em 0 0.4em; font-style: italic; }
+.print-body h3 { font-size: 12pt; margin: 1em 0 0.3em; font-style: italic; }
+.print-body p  { margin-bottom: 1em; text-align: justify; hyphens: auto; }
+
+.print-body p + p { text-indent: 1.5em; margin-top: -0.5em; }
+.print-body h1 + p,
+.print-body h2 + p,
+.print-body h3 + p { text-indent: 0; }
+
+.print-body blockquote {
+  margin: 1.2em 2.5em;
+  font-size: 11pt;
+  line-height: 1.6;
+  border-left: 2px solid #ccc;
+  padding-left: 1em;
+}
+
+.print-body pre  { font-size: 9pt; white-space: pre-wrap; margin: 0.8em 0; font-family: monospace; }
+.print-body code { font-size: 9pt; font-family: monospace; }
+
+.print-body ul, .print-body ol { margin: 0.5em 0 0.8em 2em; }
+.print-body li { margin-bottom: 0.3em; }
+
+cite.citation { font-style: normal; }
+
+.bibliography { margin-top: 2.5em; padding-top: 1.2em; border-top: 1px solid #bbb; }
+.bibliography h2 { font-size: 14pt; font-style: italic; margin-bottom: 0.8em; }
+.bibliography ol { padding-left: 2em; list-style: none; }
+.bibliography li { margin-bottom: 0.7em; font-size: 11pt; padding-left: 2em; text-indent: -2em; }
+.bib-num { font-weight: bold; margin-right: 0.4em; }
+
+.note-link { color: #333; text-decoration: underline dotted; }
+a { color: #333; }
