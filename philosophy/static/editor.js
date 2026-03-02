@@ -2,12 +2,14 @@
  * Philosophy Notes — CodeMirror 6 editor with [[note: and [@ autocomplete.
  */
 
-import { EditorState } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers, drawSelection, highlightActiveLine } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { autocompletion, completionKeymap, startCompletion } from '@codemirror/autocomplete';
-import { searchKeymap } from '@codemirror/search';
+import {
+  EditorState,
+  EditorView, keymap, lineNumbers, drawSelection, highlightActiveLine,
+  defaultKeymap, history, historyKeymap, indentWithTab,
+  markdown, markdownLanguage,
+  autocompletion, completionKeymap,
+  searchKeymap,
+} from '/static/lib/codemirror-bundle.js';
 
 let view = null;
 let onSaveFn = null;

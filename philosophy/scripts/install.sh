@@ -26,6 +26,9 @@ echo "=== Installing Python packages ==="
 pip3 install pybtex
 pip3 install -r "$APP_DIR/requirements.txt"
 
+echo "=== Building CodeMirror bundle ==="
+bash "$SCRIPT_DIR/bundle-codemirror.sh"
+
 echo ""
 echo "=== Installation complete ==="
 echo "Run with: python run.py"

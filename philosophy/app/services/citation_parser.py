@@ -241,21 +241,46 @@ def _crossref_to_bibtex(data: dict, doi: str) -> dict:
     }
 
 
+def _doi_stub(doi: str, reason: str) -> dict:
+    """Minimal stub when a DOI is detected but lookup cannot be completed."""
+    citekey = "doi" + re.sub(r"[^a-z0-9]", "", doi.lower())[:20]
+    bibtex_raw = f"@misc{{{citekey},\n  doi  = {{{doi}}},\n  note = {{Retrieved from DOI}},\n}}"
+    return {
+        "citekey": citekey,
+        "entry_type": "misc",
+        "title": f"(DOI: {doi})",
+        "authors": [],
+        "year": None,
+        "doi": doi,
+        "isbn": None,
+        "bibtex_raw": bibtex_raw,
+        "parsed_from": "doi_stub",
+        "warnings": [reason],
+    }
+
+
 def _try_doi(text: str, crossref_enabled: bool = True) -> Optional[dict]:
     doi = _extract_doi(text)
     if not doi:
         return None
-    if not crossref_enabled or not HAS_HTTPX:
-        return None
-    try:
-        url = f"https://api.crossref.org/works/{doi}"
-        headers = {"User-Agent": "PhilosophyNotesApp/1.0 (mailto:user@localhost)"}
-        resp = httpx.get(url, headers=headers, timeout=8.0)
-        if resp.status_code == 200:
-            return _crossref_to_bibtex(resp.json(), doi)
-    except Exception:
-        pass
-    return None
+    # DOI detected — attempt network lookup if enabled
+    if crossref_enabled and HAS_HTTPX:
+        try:
+            url = f"https://api.crossref.org/works/{doi}"
+            headers = {"User-Agent": "PhilosophyNotesApp/1.0 (mailto:user@localhost)"}
+            resp = httpx.get(url, headers=headers, timeout=8.0)
+            if resp.status_code == 200:
+                return _crossref_to_bibtex(resp.json(), doi)
+            # Non-200 from CrossRef — fall through to stub
+            reason = f"CrossRef returned HTTP {resp.status_code} for {doi}. Fill in the details manually."
+        except Exception as exc:
+            reason = f"Could not reach CrossRef (offline?). DOI {doi} saved; re-paste when online to fetch metadata."
+    elif not crossref_enabled:
+        reason = f"CrossRef lookup is disabled. DOI {doi} saved; enable it in Settings to fetch metadata."
+    else:
+        reason = f"httpx not available. DOI {doi} saved; install httpx to enable lookup."
+    # Always return a stub so the DOI is not lost
+    return _doi_stub(doi, reason)
 
 
 # ── Step 3: ISBN → OpenLibrary ────────────────────────────────────────────────
@@ -321,20 +346,45 @@ def _openlibrary_to_bibtex(data: dict, isbn: str) -> Optional[dict]:
     }
 
 
+def _isbn_stub(isbn: str, reason: str) -> dict:
+    """Minimal stub when an ISBN is detected but lookup cannot be completed."""
+    citekey = "isbn" + re.sub(r"[^0-9x]", "", isbn.lower())[:13]
+    bibtex_raw = f"@book{{{citekey},\n  isbn = {{{isbn}}},\n  note = {{Retrieved from ISBN}},\n}}"
+    return {
+        "citekey": citekey,
+        "entry_type": "book",
+        "title": f"(ISBN: {isbn})",
+        "authors": [],
+        "year": None,
+        "doi": None,
+        "isbn": isbn,
+        "bibtex_raw": bibtex_raw,
+        "parsed_from": "isbn_stub",
+        "warnings": [reason],
+    }
+
+
 def _try_isbn(text: str, openlibrary_enabled: bool = True) -> Optional[dict]:
     isbn = _extract_isbn(text)
     if not isbn:
         return None
-    if not openlibrary_enabled or not HAS_HTTPX:
-        return None
-    try:
-        url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=details"
-        resp = httpx.get(url, timeout=8.0)
-        if resp.status_code == 200 and resp.json():
-            return _openlibrary_to_bibtex(resp.json(), isbn)
-    except Exception:
-        pass
-    return None
+    # ISBN detected — attempt network lookup if enabled
+    if openlibrary_enabled and HAS_HTTPX:
+        try:
+            url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=details"
+            resp = httpx.get(url, timeout=8.0)
+            if resp.status_code == 200 and resp.json():
+                result = _openlibrary_to_bibtex(resp.json(), isbn)
+                if result:
+                    return result
+            reason = f"OpenLibrary returned no data for ISBN {isbn}. Fill in the details manually."
+        except Exception:
+            reason = f"Could not reach OpenLibrary (offline?). ISBN {isbn} saved; re-paste when online to fetch metadata."
+    elif not openlibrary_enabled:
+        reason = f"OpenLibrary lookup is disabled. ISBN {isbn} saved; enable it in Settings to fetch metadata."
+    else:
+        reason = f"httpx not available. ISBN {isbn} saved; install httpx to enable lookup."
+    return _isbn_stub(isbn, reason)
 
 
 # ── Step 5: Free-text fallback ────────────────────────────────────────────────
