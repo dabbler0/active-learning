@@ -181,11 +181,14 @@ export function extractCitekeys(markdown) {
  * replace their inner text with formatted citation labels and return
  * a bibliography section to append.
  *
- * @param {string} html       - rendered HTML from md.render()
+ * @param {string} html            - rendered HTML from md.render()
  * @param {Map<string,object>} citationMap - citekey → citation object
- * @param {string} style      - 'authoryear' | 'numeric' | 'alpha'
+ * @param {string} style           - 'authoryear' | 'numeric' | 'alpha' | ...
+ * @param {boolean} footnoteCitations - when true, wrap each citation in a
+ *   paged.js `<span class="footnote">` instead of an inline parenthetical,
+ *   and omit the bibliography section (footnotes serve as references).
  */
-export function applyCitations(html, citationMap, style = 'authoryear') {
+export function applyCitations(html, citationMap, style = 'authoryear', footnoteCitations = false) {
   if (!citationMap.size) return { html, bibliography: '' };
 
   // Collect cited keys in order of appearance
@@ -200,6 +203,27 @@ export function applyCitations(html, citationMap, style = 'authoryear') {
 
   // Build index (1-based for numeric/alpha)
   const index = new Map(orderedKeys.map((k, i) => [k, i + 1]));
+
+  // ── Footnote mode ──────────────────────────────────────────────────────
+  // Each <cite> becomes a paged.js footnote span; no bibliography section.
+  if (footnoteCitations) {
+    const replaced = html.replace(
+      /<cite class="citation" data-citekey="([^"]+)">([^<]*)<\/cite>/g,
+      (_, key, inner) => {
+        const c = citationMap.get(key);
+        const comma = inner.indexOf(',');
+        const locator = comma > -1 ? inner.slice(comma + 1).trim() : null;
+        const fullText = c
+          ? formatBibEntry(c, style, index.get(key))
+          : `<code>${key}</code> — not found in library`;
+        const locStr = locator ? `, ${locator}` : '';
+        return `<span class="footnote">${fullText}${locStr}</span>`;
+      }
+    );
+    return { html: replaced, bibliography: '' };
+  }
+
+  // ── Inline parenthetical mode ──────────────────────────────────────────
 
   function label(key, locator) {
     const c = citationMap.get(key);
@@ -239,18 +263,18 @@ export function applyCitations(html, citationMap, style = 'authoryear') {
     }
   );
 
-  // Build bibliography
+  // Build bibliography as reverse-indented (hanging-indent) paragraphs
   const bibLines = orderedKeys
     .map(key => {
       const c = citationMap.get(key);
-      if (!c) return `<li id="ref-${key}"><code>${key}</code> — not found in library</li>`;
-      return `<li id="ref-${key}">${formatBibEntry(c, style, index.get(key))}</li>`;
+      if (!c) return `<p class="bib-entry" id="ref-${key}"><code>${key}</code> — not found in library</p>`;
+      return `<p class="bib-entry" id="ref-${key}">${formatBibEntry(c, style, index.get(key))}</p>`;
     })
     .join('\n');
 
   const sectionTitle = style === 'mla' ? 'Works Cited' : 'References';
   const bibliography = bibLines
-    ? `<section class="bibliography"><h2>${sectionTitle}</h2><ol>${bibLines}</ol></section>`
+    ? `<section class="bibliography"><h2>${sectionTitle}</h2><div class="bib-list">${bibLines}</div></section>`
     : '';
 
   return { html: replaced, bibliography };
@@ -357,16 +381,17 @@ export function formatBibEntry(c, style, num) {
  * @param {string}            markdown
  * @param {Map<string,object>|object} citations  - Map or plain object of citekey→citation
  * @param {string}            bibStyle           - 'authoryear'|'numeric'|'alpha'
+ * @param {boolean}           footnoteCitations  - render citations as footnotes (paged.js)
  * @returns {{ html: string, bibliography: string, citekeys: string[] }}
  */
-export function renderMarkdown(markdown, citations = new Map(), bibStyle = 'authoryear') {
+export function renderMarkdown(markdown, citations = new Map(), bibStyle = 'authoryear', footnoteCitations = false) {
   const citationMap = citations instanceof Map
     ? citations
     : new Map(Object.entries(citations));
 
   const rawHtml = md.render(markdown);
   const citekeys = extractCitekeys(markdown);
-  const { html, bibliography } = applyCitations(rawHtml, citationMap, bibStyle);
+  const { html, bibliography } = applyCitations(rawHtml, citationMap, bibStyle, footnoteCitations);
 
   return { html, bibliography, citekeys };
 }

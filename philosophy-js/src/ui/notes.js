@@ -8,8 +8,8 @@
  */
 
 import { createEditor, setEditorContent, getEditorContent } from './editor.js';
-import { renderFull, extractCitekeys, renderRaw, formatBibEntry } from '../services/markdown.js';
-import { generatePdf, LAYOUTS } from '../services/typeset/index.js';
+import { renderFull, extractCitekeys, renderMarkdown } from '../services/markdown.js';
+import { printNote, themeList } from '../services/pdf.js';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -194,38 +194,22 @@ async function deleteCurrentNote() {
 
 async function printCurrentNote() {
   if (!_editorView) return;
-  const body   = getEditorContent(_editorView);
-  const title  = $('note-title').value.trim() || 'Untitled';
-  const author = $('compile-author')?.value ?? '';
-  const layout = $('print-theme-select')?.value ?? 'amsart';
-  const date   = new Date().toLocaleDateString('en-US', {
-    year: 'numeric', month: 'long', day: 'numeric',
-  });
+  const body    = getEditorContent(_editorView);
+  const title   = $('note-title').value.trim() || 'Untitled';
+  const author  = $('compile-author')?.value ?? '';
+  const themeId = $('print-theme-select')?.value ?? 'academic';
+  const footnoteCitations = $('footnote-citations')?.checked ?? false;
 
-  // Load all citations so the typesetter can resolve every citekey
+  // Load all citations so every citekey can be resolved
   const all = await _storage.listCitations();
   const citationMap = new Map(all.map(c => [c.citekey, c]));
 
-  const layoutCfg = LAYOUTS.find(l => l.id === layout)?.config ?? LAYOUTS[0].config;
+  // Render markdown with citations (inline parentheticals or footnotes)
+  const { html, bibliography } = renderMarkdown(
+    body, citationMap, _settings.citationStyle, footnoteCitations
+  );
 
-  const blob = generatePdf({
-    body,
-    title,
-    author,
-    date,
-    citationMap,
-    citationStyle: _settings.citationStyle,
-    layoutConfig:  layoutCfg,
-    formatBibEntry,
-    renderRaw,
-  });
-
-  const url = URL.createObjectURL(blob);
-  const a   = document.createElement('a');
-  a.href     = url;
-  a.download = `${title.replace(/[^a-z0-9 ]/gi, '').trim() || 'document'}.pdf`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  printNote(html + bibliography, title, themeId, author);
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────
@@ -255,10 +239,10 @@ export async function initNotes(storage, { getCitations, settings = {} } = {}) {
   _settings = { ..._settings, ...settings };
   _storage = storage;
 
-  // Populate layout selector (replaces old print-theme-select)
+  // Populate print theme selector
   const themeSelect = $('print-theme-select');
   if (themeSelect) {
-    LAYOUTS.forEach(({ id, label }) => {
+    themeList().forEach(({ id, label }) => {
       const opt = document.createElement('option');
       opt.value = id;
       opt.textContent = label;

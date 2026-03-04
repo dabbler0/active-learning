@@ -83,9 +83,13 @@
           <button id="delete-note-btn" class="btn-ghost btn-danger" title="Delete note">Delete</button>
           <button id="save-btn" class="btn-primary">Save</button>
           <div class="print-wrapper">
-            <select id="print-theme-select" title="PDF layout"></select>
+            <select id="print-theme-select" title="PDF theme"></select>
             <input type="text" id="compile-author" placeholder="Author (for PDF)" class="author-input" />
-            <button id="print-btn" class="btn-secondary">Download PDF</button>
+            <label class="footnote-label" title="Render citations as footnotes instead of inline parentheticals">
+              <input type="checkbox" id="footnote-citations" />
+              Footnote citations
+            </label>
+            <button id="print-btn" class="btn-secondary">Print PDF</button>
           </div>
         </div>
       </div>

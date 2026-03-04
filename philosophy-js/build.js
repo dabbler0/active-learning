@@ -19,6 +19,11 @@ fs.mkdirSync(dist, { recursive: true });
 // Copy static assets
 fs.copyFileSync('index.html',    path.join(dist, 'index.html'));
 fs.copyFileSync('src/app.css',   path.join(dist, 'app.css'));
+// Copy paged.js polyfill so it can be loaded by the print popup window
+fs.copyFileSync(
+  'node_modules/pagedjs/dist/paged.polyfill.js',
+  path.join(dist, 'pagedjs.polyfill.js')
+);
 
 const ctx = await esbuild.context({
   entryPoints: ['src/main.js'],

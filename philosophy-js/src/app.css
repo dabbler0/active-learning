@@ -287,6 +287,8 @@ html, body {
 .author-input::placeholder { color: var(--color-text-muted); }
 .print-wrapper select:focus,
 .author-input:focus { outline: none; border-color: var(--color-accent); }
+.footnote-label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--color-text-muted); cursor: pointer; white-space: nowrap; }
+.footnote-label input[type="checkbox"] { cursor: pointer; }
 
 /* Citation editor */
 .cite-fields, .cite-note-section {
@@ -361,8 +363,9 @@ html, body {
 .note-preview cite.citation { color: var(--color-accent2); font-style: normal; }
 .note-preview .bibliography { margin-top: 2em; padding-top: 1em; border-top: 1px solid var(--color-border); font-size: 13px; }
 .note-preview .bibliography h2 { font-size: 14px; margin-bottom: 0.6em; }
-.note-preview .bibliography ol { padding-left: 1.5em; }
-.note-preview .bibliography li { margin-bottom: 0.4em; }
+/* Hanging-indent (reverse-indent) reference list */
+.note-preview .bib-list { margin: 0; padding: 0; }
+.note-preview .bib-entry { padding-left: 2em; text-indent: -2em; margin-bottom: 0.4em; }
 
 /* Citation details (inside right panel when citation is open) */
 .right-section { padding: 14px; }
