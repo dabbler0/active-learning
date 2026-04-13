@@ -1,16 +1,12 @@
-# Deploy philosophy-js to GitHub Pages
+# Deploy Philosophy Notes to GitHub Pages
 #
-# Triggers on every push to main that touches the philosophy-js directory
+# Triggers on every push to main that touches source files
 # (or the workflow file itself).
 #
-# The built artefact is a handful of static files in philosophy-js/dist/:
-#   index.html   app.css   bundle.js
+# The built artefact (dist/) is uploaded as the Pages artefact and served
+# at the repository root:  https://<org>.github.io/<repo>/
 #
-# They are served at:
-#   https://<org>.github.io/<repo>/philosophy-js/
-#
-# No base-path changes are required because all asset links in index.html
-# are relative ("app.css", "bundle.js").
+# All asset links in index.html are relative so no base-path changes needed.
 
 name: Deploy Philosophy Notes to GitHub Pages
 
@@ -18,7 +14,10 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'philosophy-js/**'
+      - 'src/**'
+      - 'index.html'
+      - 'build.js'
+      - 'package*.json'
       - '.github/workflows/deploy-philosophy-js.yml'
   # Allow manual trigger from the Actions tab
   workflow_dispatch:
@@ -38,9 +37,6 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: philosophy-js
 
     steps:
       - name: Checkout
@@ -51,7 +47,6 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: philosophy-js/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -62,8 +57,8 @@ jobs:
       - name: Upload Pages artefact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload the dist/ directory produced by the build
-          path: philosophy-js/dist
+          # dist/ contains index.html, app.css, bundle.js — served at repo root
+          path: dist
 
   deploy:
     name: Deploy

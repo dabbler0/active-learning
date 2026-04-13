@@ -754,11 +754,13 @@ html, body {
   /* ── Welcome screen text ── */
   .welcome-content h1 { font-size: 18px; }
   .welcome-shortcuts { display: none; }
+
+  /* ── Show bottom nav (hidden on desktop via rule outside this block) ── */
+  #mobile-nav { display: flex; }
+  /* #mobile-more-panel visibility is driven by data-mobile-panel attribute
+     selectors above; we never set display here — the attribute rules handle it */
 }
 
-/* ── Bottom nav only exists on mobile; hide on desktop ── */
-#mobile-nav { display: none; }
-@media (max-width: 768px) {
-  #mobile-nav { display: flex; }
-  #mobile-more-panel { display: none; } /* JS controls visibility */
-}
+/* ── Hidden on desktop; shown only in the mobile media query above ── */
+#mobile-nav        { display: none; }
+#mobile-more-panel { display: none; }
