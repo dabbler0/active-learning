@@ -567,3 +567,198 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+/* ── Bluetooth modal ───────────────────────────────────────────── */
+.bt-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--color-border); margin-bottom: 12px; }
+.bt-tab {
+  background: none; border: none; padding: 7px 16px;
+  font-size: 13px; cursor: pointer; color: var(--color-text-muted);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color var(--transition), border-color var(--transition);
+}
+.bt-tab.active { color: var(--color-accent); border-bottom-color: var(--color-accent); font-weight: 600; }
+.bt-tab:hover:not(.active) { color: var(--color-text); }
+
+.bt-panel { display: none; flex-direction: column; gap: 10px; }
+.bt-panel.active { display: flex; }
+
+.bt-status {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; padding: 8px 12px;
+  background: var(--color-surface2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+}
+.bt-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--color-border); flex-shrink: 0;
+  transition: background 0.3s;
+}
+.bt-dot.idle    { background: var(--color-border); }
+.bt-dot.scanning { background: var(--color-warn); animation: bt-pulse 1s infinite; }
+.bt-dot.connected { background: var(--color-success); }
+.bt-dot.error   { background: var(--color-danger); }
+@keyframes bt-pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+.bt-progress-wrap {
+  height: 6px; background: var(--color-surface2);
+  border-radius: 3px; overflow: hidden;
+}
+.bt-progress-bar {
+  height: 100%; background: var(--color-accent);
+  border-radius: 3px; width: 0%;
+  transition: width 0.2s ease;
+}
+
+.bt-log {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--color-text-muted); background: var(--color-surface2);
+  border: 1px solid var(--color-border); border-radius: var(--radius);
+  padding: 8px 10px; max-height: 100px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-all;
+}
+
+.bt-unsupported {
+  font-size: 13px; color: var(--color-warn);
+  background: rgba(191,96,16,0.06); border: 1px solid rgba(191,96,16,0.25);
+  border-radius: var(--radius); padding: 10px 12px; line-height: 1.5;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MOBILE  ≤ 768 px
+   Single-column layout; bottom navigation bar replaces tab-nav.
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Use dynamic viewport height so browser chrome doesn't clip content */
+  html, body { height: 100dvh; overflow: hidden; }
+
+  /* ── Toolbar — compact on mobile ── */
+  #toolbar {
+    gap: 8px;
+    padding: 0 10px;
+  }
+  /* Hide tab buttons from top bar; navigation moves to bottom nav */
+  .tab-nav { display: none; }
+  /* Hide export/import/settings from toolbar; moved to More panel */
+  .toolbar-right { display: none; }
+
+  /* ── Main grid — single column, full height minus toolbar & bottom nav ── */
+  #main {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--toolbar-h) - 56px); /* 56px = bottom nav */
+    padding-top: var(--toolbar-h);
+    overflow: hidden;
+    /* JS-set inline grid-template-columns has no effect in mobile flex mode */
+  }
+
+  /* Hide resize handles on mobile */
+  .resize-handle { display: none; }
+
+  /* ── Panel visibility — controlled by data-mobile-panel on #main ── */
+  #left-panel,
+  #editor-panel,
+  #right-panel,
+  #mobile-more-panel {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: none;   /* hidden by default; shown by data attribute below */
+  }
+
+  /* Show the panel matching the active mobile tab */
+  #main[data-mobile-panel="list"]    #left-panel        { display: flex; flex-direction: column; }
+  #main[data-mobile-panel="edit"]    #editor-panel      { display: flex; flex-direction: column; }
+  #main[data-mobile-panel="preview"] #right-panel       { display: block; overflow-y: auto; }
+  #main[data-mobile-panel="more"]    #mobile-more-panel { display: flex; flex-direction: column; }
+
+  /* ── Bottom navigation bar ── */
+  #mobile-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 56px;
+    display: flex;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    z-index: 150;
+  }
+
+  .mobile-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 10px;
+    font-family: var(--font-ui);
+    padding: 6px 4px;
+    transition: color var(--transition), background var(--transition);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-nav-btn .nav-icon { font-size: 20px; line-height: 1; }
+  .mobile-nav-btn.active { color: var(--color-accent); }
+  .mobile-nav-btn:active { background: var(--color-surface2); }
+
+  /* ── "More" panel (export / import / settings / bluetooth) ── */
+  #mobile-more-panel {
+    padding: 16px;
+    gap: 10px;
+    background: var(--color-surface);
+    overflow-y: auto;
+  }
+  .more-section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--color-text-muted); margin-bottom: 4px;
+  }
+  .more-btn-row { display: flex; flex-direction: column; gap: 8px; }
+  .more-btn-row .btn-ghost,
+  .more-btn-row .btn-primary,
+  .more-btn-row .btn-secondary {
+    padding: 10px 14px; font-size: 14px; text-align: left;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* ── Editor panel — full width, remove fixed sidebar widths ── */
+  #editor-panel { width: 100%; }
+
+  /* ── Note editor footer — stack vertically on small screens ── */
+  .editor-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px;
+  }
+  .editor-actions { width: 100%; justify-content: flex-end; }
+  .print-wrapper { display: none; } /* Hide print on mobile to save space */
+
+  /* ── List panel — make items slightly taller for touch ── */
+  .item { padding: 12px; }
+
+  /* ── Right panel (preview) ── */
+  #right-panel { height: 100%; }
+
+  /* ── Modals — full-width on mobile ── */
+  .modal { width: 100vw; min-height: 50vh; border-radius: var(--radius) var(--radius) 0 0; }
+  .modal-overlay { align-items: flex-end; }
+
+  /* ── Toast — above bottom nav ── */
+  .toast { bottom: 68px; }
+
+  /* ── Welcome screen text ── */
+  .welcome-content h1 { font-size: 18px; }
+  .welcome-shortcuts { display: none; }
+}
+
+/* ── Bottom nav only exists on mobile; hide on desktop ── */
+#mobile-nav { display: none; }
+@media (max-width: 768px) {
+  #mobile-nav { display: flex; }
+  #mobile-more-panel { display: none; } /* JS controls visibility */
+}

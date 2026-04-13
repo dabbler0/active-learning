@@ -4,15 +4,17 @@
  * Responsibilities:
  *  - Instantiate storage backend
  *  - Wire tab navigation (Notes | Citations | Search)
- *  - Initialise UI modules
+ *  - Initialise UI modules (including Bluetooth)
  *  - Handle Export / Import
  *  - Handle Settings modal
+ *  - Handle mobile bottom navigation
  */
 
 import { IndexedDBBackend } from './storage/indexeddb.js';
 import { initNotes, openNote, refreshNoteList } from './ui/notes.js';
 import { initCitations, updateCitationSettings, openCitation, refreshCitationList } from './ui/citations.js';
 import { initSearch } from './ui/search.js';
+import { initBluetooth } from './ui/bluetooth.js';
 
 // ── Storage ────────────────────────────────────────────────────────────────
 
@@ -37,7 +39,7 @@ function saveSettings(patch) {
   return next;
 }
 
-// ── Resizable panels ───────────────────────────────────────────────────────
+// ── Resizable panels (desktop only) ───────────────────────────────────────
 
 function initResizePanels() {
   const main = document.getElementById('main');
@@ -46,7 +48,10 @@ function initResizePanels() {
   let rightW = s.rightPanelWidth ?? 360;
 
   function applyColumns() {
-    main.style.gridTemplateColumns = `${leftW}px 4px 1fr 4px ${rightW}px`;
+    // Only apply grid columns on desktop (> 768px)
+    if (window.innerWidth > 768) {
+      main.style.gridTemplateColumns = `${leftW}px 4px 1fr 4px ${rightW}px`;
+    }
   }
   applyColumns();
 
@@ -54,7 +59,6 @@ function initResizePanels() {
     document.getElementById(handleId)?.addEventListener('mousedown', e => {
       e.preventDefault();
       document.getElementById(handleId).classList.add('dragging');
-      // Freeze start values at mousedown time
       const startX     = e.clientX;
       const startLeft  = leftW;
       const startRight = rightW;
@@ -71,10 +75,11 @@ function initResizePanels() {
     });
   }
 
-  // Left handle: drag right → left panel grows
   attachDrag('resize-left',  (dx, startL) => { leftW  = Math.max(180, Math.min(600, startL + dx)); });
-  // Right handle: drag right → right panel shrinks
   attachDrag('resize-right', (dx, _sl, startR) => { rightW = Math.max(180, Math.min(700, startR - dx)); });
+
+  // Re-apply grid on resize (e.g. rotating a tablet)
+  window.addEventListener('resize', applyColumns);
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
@@ -85,6 +90,37 @@ function activateTab(tab) {
   });
   document.querySelectorAll('.list-panel').forEach(panel => {
     panel.classList.toggle('hidden', panel.id !== `${tab}-panel`);
+  });
+}
+
+// ── Mobile bottom navigation ───────────────────────────────────────────────
+
+function initMobileNav() {
+  const main       = document.getElementById('main');
+  const mobileNav  = document.getElementById('mobile-nav');
+
+  if (!mobileNav) return;
+
+  function activateMobilePanel(panel) {
+    main.dataset.mobilePanel = panel;
+    mobileNav.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.panel === panel);
+    });
+    // Show the bt-send-log / bt-recv-log divs when panel contains logs
+  }
+
+  mobileNav.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => activateMobilePanel(btn.dataset.panel));
+  });
+
+  // After opening a note or citation, switch to the edit panel on mobile
+  window.addEventListener('mobile-open-edit', () => {
+    if (window.innerWidth <= 768) activateMobilePanel('edit');
+  });
+
+  // After list tab switching, switch to list panel on mobile
+  window.addEventListener('mobile-open-list', () => {
+    if (window.innerWidth <= 768) activateMobilePanel('list');
   });
 }
 
@@ -188,20 +224,26 @@ async function boot() {
     onNoteClick: note => {
       activateTab('notes');
       openNote(note);
+      window.dispatchEvent(new Event('mobile-open-edit'));
     },
     onCitationClick: c => {
       activateTab('citations');
       openCitation(c);
+      window.dispatchEvent(new Event('mobile-open-edit'));
     },
   });
 
   // ── Tab buttons ──
   document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+    btn.addEventListener('click', () => {
+      activateTab(btn.dataset.tab);
+      window.dispatchEvent(new Event('mobile-open-list'));
+    });
   });
 
   // ── Settings ──
   document.getElementById('settings-btn')?.addEventListener('click', openSettings);
+  document.getElementById('settings-btn-more')?.addEventListener('click', openSettings);
   document.getElementById('save-settings-btn')?.addEventListener('click', applySettings);
   document.getElementById('cancel-settings-btn')?.addEventListener('click', closeSettings);
   document.getElementById('settings-modal')?.addEventListener('click', e => {
@@ -211,13 +253,24 @@ async function boot() {
   // ── Export / Import ──
   document.getElementById('export-btn')?.addEventListener('click', exportData);
   document.getElementById('import-btn')?.addEventListener('click', importData);
+  // Mobile "More" panel buttons mirror the toolbar
+  document.getElementById('export-btn-more')?.addEventListener('click', exportData);
+  document.getElementById('import-btn-more')?.addEventListener('click', importData);
+
+  // ── Bluetooth ──
+  initBluetooth(storage, { showToast });
 
   // ── Resizable panels ──
   initResizePanels();
 
+  // ── Mobile navigation ──
+  initMobileNav();
+
   // ── Storage backend info ──
   const beLabel = document.getElementById('backend-label');
   if (beLabel) beLabel.textContent = storage.name;
+  const beLabelMore = document.getElementById('backend-label-more');
+  if (beLabelMore) beLabelMore.textContent = storage.name;
 }
 
 boot().catch(err => {

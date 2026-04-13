@@ -18,6 +18,7 @@
   </nav>
   <div class="toolbar-right">
     <span id="backend-label" class="backend-badge" title="Storage backend"></span>
+    <button id="bt-open-btn" class="btn-ghost" title="Bluetooth transfer">&#x1F4F6; Bluetooth</button>
     <button id="export-btn" class="btn-ghost" title="Export all data as JSON">Export</button>
     <button id="import-btn" class="btn-ghost" title="Import data from JSON file">Import</button>
     <button id="settings-btn" title="Settings">⚙</button>
@@ -25,7 +26,7 @@
 </header>
 
 <!-- ═══════════════════════════════════════════ MAIN PANELS -->
-<main id="main">
+<main id="main" data-mobile-panel="list">
 
   <!-- LEFT: list panel -->
   <aside id="left-panel">
@@ -154,7 +155,44 @@
 
   </aside>
 
+  <!-- MOBILE ONLY: More panel (export / import / settings / bluetooth) -->
+  <div id="mobile-more-panel">
+    <p class="more-section-title">Data</p>
+    <div class="more-btn-row">
+      <button id="export-btn-more" class="btn-ghost">&#x1F4BE; Export JSON</button>
+      <button id="import-btn-more" class="btn-ghost">&#x1F4C2; Import JSON</button>
+      <button id="bt-open-btn-more" class="btn-ghost">&#x1F4F6; Bluetooth Transfer</button>
+    </div>
+    <p class="more-section-title" style="margin-top:12px">App</p>
+    <div class="more-btn-row">
+      <button id="settings-btn-more" class="btn-ghost">&#x2699;&#xFE0F; Settings</button>
+    </div>
+    <p class="more-section-title" style="margin-top:12px;font-size:10px;color:var(--color-text-muted)">
+      <span id="backend-label-more"></span>
+    </p>
+  </div>
+
 </main>
+
+<!-- ═══════════════════════════════════════════ MOBILE BOTTOM NAV -->
+<nav id="mobile-nav" aria-label="Mobile navigation">
+  <button class="mobile-nav-btn active" data-panel="list">
+    <span class="nav-icon">&#x1F4CB;</span>
+    <span>List</span>
+  </button>
+  <button class="mobile-nav-btn" data-panel="edit">
+    <span class="nav-icon">&#x270F;&#xFE0F;</span>
+    <span>Edit</span>
+  </button>
+  <button class="mobile-nav-btn" data-panel="preview">
+    <span class="nav-icon">&#x1F441;&#xFE0F;</span>
+    <span>Preview</span>
+  </button>
+  <button class="mobile-nav-btn" data-panel="more">
+    <span class="nav-icon">&#x22EF;</span>
+    <span>More</span>
+  </button>
+</nav>
 
 <!-- ═══════════════════════════════════════════ MODALS -->
 
@@ -197,6 +235,81 @@
     <div class="modal-footer">
       <button id="save-settings-btn" class="btn-primary">Save</button>
       <button id="cancel-settings-btn" class="btn-ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bluetooth modal -->
+<div id="bt-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>&#x1F4F6; Bluetooth Transfer</h2>
+
+    <p class="modal-hint">
+      Transfer your full notes &amp; citations database to or from another
+      device running Philosophy Notes nearby, over Bluetooth LE.
+      <strong>Requires Chrome or Edge (desktop / Android) over HTTPS.</strong>
+    </p>
+
+    <!-- Browser support warning (hidden when supported) -->
+    <p id="bt-unsupported" class="bt-unsupported hidden">
+      &#x26A0;&#xFE0F; Web Bluetooth is not available in this browser.<br>
+      Please use <strong>Chrome</strong> or <strong>Edge</strong> on desktop or Android,
+      served over <strong>HTTPS</strong> or <strong>localhost</strong>.
+      Firefox and Safari do not support Web Bluetooth.
+    </p>
+
+    <!-- Tabs: Send / Receive -->
+    <div class="bt-tabs">
+      <button id="bt-tab-send"    class="bt-tab active">Send to device</button>
+      <button id="bt-tab-receive" class="bt-tab">Receive from device</button>
+    </div>
+
+    <!-- ── Send panel ── -->
+    <div id="bt-panel-send" class="bt-panel active">
+      <p class="modal-hint">
+        Exports your local data and writes it to the selected Bluetooth device.
+        The remote device must be running Philosophy Notes and exposing the
+        custom GATT service (e.g. Chrome Canary on Android with
+        <em>Experimental Web Platform Features</em> enabled).
+      </p>
+      <div class="bt-status">
+        <span id="bt-send-dot" class="bt-dot idle"></span>
+        <span id="bt-send-status-text">Ready</span>
+      </div>
+      <div class="bt-progress-wrap">
+        <div id="bt-send-progress-bar" class="bt-progress-bar"></div>
+      </div>
+      <div id="bt-send-log" class="bt-log" style="display:none"></div>
+      <div class="modal-footer">
+        <button id="bt-send-btn" class="btn-primary">Scan &amp; Send</button>
+        <button id="bt-send-cancel-btn" class="btn-ghost hidden">Cancel</button>
+      </div>
+    </div>
+
+    <!-- ── Receive panel ── -->
+    <div id="bt-panel-receive" class="bt-panel">
+      <p class="modal-hint">
+        Connects to a nearby device hosting a Philosophy Notes GATT service
+        and imports all its notes and citations into this browser.
+        <strong>This will replace your current data.</strong>
+      </p>
+      <div class="bt-status">
+        <span id="bt-recv-dot" class="bt-dot idle"></span>
+        <span id="bt-recv-status-text">Ready</span>
+      </div>
+      <div class="bt-progress-wrap">
+        <div id="bt-recv-progress-bar" class="bt-progress-bar"></div>
+      </div>
+      <div id="bt-recv-log" class="bt-log" style="display:none"></div>
+      <div class="modal-footer">
+        <button id="bt-receive-btn" class="btn-primary">Scan &amp; Receive</button>
+        <button id="bt-recv-cancel-btn" class="btn-ghost hidden">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Close -->
+    <div class="modal-footer" style="border-top:1px solid var(--color-border);padding-top:10px">
+      <button id="bt-close-btn" class="btn-ghost">Close</button>
     </div>
   </div>
 </div>
