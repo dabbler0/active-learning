@@ -625,6 +625,10 @@ html, body {
   border-radius: var(--radius); padding: 10px 12px; line-height: 1.5;
 }
 
+/* ── Hidden by default (desktop); the @media block below overrides on mobile ── */
+#mobile-nav        { display: none; }
+#mobile-more-panel { display: none; }
+
 /* ════════════════════════════════════════════════════════════════
    MOBILE  ≤ 768 px
    Single-column layout; bottom navigation bar replaces tab-nav.
@@ -761,6 +765,3 @@ html, body {
      selectors above; we never set display here — the attribute rules handle it */
 }
 
-/* ── Hidden on desktop; shown only in the mobile media query above ── */
-#mobile-nav        { display: none; }
-#mobile-more-panel { display: none; }
