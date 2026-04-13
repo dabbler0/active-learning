@@ -46,7 +46,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          # No npm cache — avoids stale-cache failures after directory restructure
 
       - name: Install dependencies
         run: npm ci
@@ -54,11 +54,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify build output
+        run: ls -lh dist/
+
       - name: Upload Pages artefact
         uses: actions/upload-pages-artifact@v3
         with:
-          # dist/ contains index.html, app.css, bundle.js — served at repo root
-          path: dist
+          # Explicit ./ prefix; contents of dist/ become the Pages site root
+          path: ./dist
 
   deploy:
     name: Deploy
