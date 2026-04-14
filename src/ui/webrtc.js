@@ -8,16 +8,16 @@
  *
  * "Show QR" tab (host / offer side):
  *   1. Click "Generate QR Code" → offer SDP split into N small QR codes
- *      (use ‹ / › to step through them)
- *   2. Other device scans all N QR codes with its camera
- *   3. Other device displays answer QR codes
+ *      that cycle automatically every 2 s
+ *   2. Other device scans all N QR codes with its camera (any order)
+ *   3. Other device displays cycling answer QR codes
  *   4. Click "Scan Answer QR" → scan all answer QR codes
  *   5. Connection opens → Push / Pull buttons appear
  *
  * "Scan QR" tab (join / answer side):
  *   1. Click "Scan QR Code" → open camera, scan all offer QR codes
  *      (scanner automatically collects chunks in any order)
- *   2. Answer SDP split into N small QR codes — step through with ‹ / ›
+ *   2. Answer SDP split into N small QR codes that cycle automatically
  *   3. Other device scans all answer QR codes
  *   4. Connection opens → Push / Pull buttons appear
  *
@@ -72,14 +72,18 @@ function encodeForQRs(role, compressedSdp) {
   return chunks.map((s, i) => JSON.stringify({ v: 1, r: role, i, n, s }));
 }
 
-// ── Multi-QR display ──────────────────────────────────────────────────────────
+// ── Auto-cycling QR display ───────────────────────────────────────────────────
+
+const QR_CYCLE_MS = 2000; // milliseconds per QR code
 
 /**
- * Render a QR sequence onto a canvas with prev/next navigation buttons.
- * Nav elements are hidden when there is only one QR code.
+ * Render a QR sequence onto a canvas, cycling automatically every QR_CYCLE_MS.
+ * The counter element shows "1 of N" and is hidden when N = 1.
+ * Returns a stop() function — call it to cancel the cycle.
  */
-async function setupQRNav(canvasEl, counterEl, prevBtn, nextBtn, payloads) {
-  let idx = 0;
+async function startQRCycle(canvasEl, counterEl, payloads) {
+  let idx      = 0;
+  let timerId  = null;
 
   async function show(i) {
     idx = i;
@@ -90,20 +94,19 @@ async function setupQRNav(canvasEl, counterEl, prevBtn, nextBtn, payloads) {
       color:                { dark: '#000000', light: '#ffffff' },
     });
     const single = payloads.length === 1;
-    prevBtn.classList.toggle('hidden', single);
-    nextBtn.classList.toggle('hidden', single);
     counterEl.classList.toggle('hidden', single);
-    if (!single) {
-      counterEl.textContent = `${i + 1} of ${payloads.length}`;
-      prevBtn.disabled = i === 0;
-      nextBtn.disabled = i === payloads.length - 1;
-    }
+    if (!single) counterEl.textContent = `${i + 1} of ${payloads.length}`;
   }
 
-  prevBtn.onclick = () => { if (idx > 0)                     show(idx - 1); };
-  nextBtn.onclick = () => { if (idx < payloads.length - 1)   show(idx + 1); };
-
   await show(0);
+  if (payloads.length > 1) {
+    timerId = setInterval(() => show((idx + 1) % payloads.length), QR_CYCLE_MS);
+  }
+
+  return function stop() {
+    clearInterval(timerId);
+    timerId = null;
+  };
 }
 
 // ── Camera QR scanner ─────────────────────────────────────────────────────────
@@ -206,15 +209,26 @@ export function initWebRTC(storage, { showToast }) {
 
   let transfer  = null;
   let scanAbort = null;
+  let stopCycle = null; // cancel function returned by startQRCycle
+
+  // Stored payloads so the cycle can restart if a scan is cancelled mid-way
+  let hostOfferPayloads = null;
+  let joinAnswerPayloads = null;
 
   function stopScan() {
     scanAbort?.abort();
     scanAbort = null;
   }
 
+  function stopCycler() {
+    stopCycle?.();
+    stopCycle = null;
+  }
+
   function closeModal() {
     modal.classList.add('hidden');
     stopScan();
+    stopCycler();
     transfer?.abort();
     transfer = null;
     resetUI();
@@ -238,6 +252,7 @@ export function initWebRTC(storage, { showToast }) {
     hostPanel?.classList.toggle('active', which === 'host');
     joinPanel?.classList.toggle('active', which === 'join');
     stopScan();
+    stopCycler();
     transfer?.abort();
     transfer = null;
     resetHostPanel();
@@ -321,29 +336,33 @@ export function initWebRTC(storage, { showToast }) {
   }
 
   function resetHostPanel() {
+    stopCycler();
+    hostOfferPayloads = null;
     showHostState('step1');
     if (hostLog)      { hostLog.textContent = ''; hostLog.style.display = 'none'; }
     if (hostProgWrap)   hostProgWrap.classList.add('hidden');
     if (hostProgBar)    hostProgBar.style.width = '0%';
   }
 
+  async function startHostCycle(payloads) {
+    stopCycler();
+    stopCycle = await startQRCycle($('qr-host-canvas'), $('qr-host-counter'), payloads);
+    showHostState('qr');
+  }
+
   $('qr-gen-btn')?.addEventListener('click', async () => {
     stopScan();
+    stopCycler();
     transfer?.abort();
     transfer = new WebRTCTransfer();
     wireEvents('qr-host', transfer);
 
     try {
       const encoded  = await transfer.createOffer();
-      const payloads = encodeForQRs('offer', encoded);
-      await setupQRNav(
-        $('qr-host-canvas'), $('qr-host-counter'),
-        $('qr-host-prev'),   $('qr-host-next'),
-        payloads,
-      );
-      showHostState('qr');
-      if (payloads.length > 1) {
-        appendLog(hostLog, `Offer split into ${payloads.length} QR codes — use ‹ / › to step through them.`);
+      hostOfferPayloads = encodeForQRs('offer', encoded);
+      await startHostCycle(hostOfferPayloads);
+      if (hostOfferPayloads.length > 1) {
+        appendLog(hostLog, `Offer split into ${hostOfferPayloads.length} QR codes, cycling automatically.`);
       }
     } catch (err) {
       appendLog(hostLog, 'Error: ' + err.message);
@@ -353,6 +372,7 @@ export function initWebRTC(storage, { showToast }) {
   });
 
   $('qr-scan-answer-btn')?.addEventListener('click', async () => {
+    stopCycler(); // pause cycle while camera is open
     showHostState('scan');
     scanAbort = new AbortController();
     const statusEl = $('qr-host-scan-status');
@@ -370,9 +390,10 @@ export function initWebRTC(storage, { showToast }) {
       );
 
       if (role !== 'answer') throw new Error('Not a valid answer QR code.');
-      showHostState('qr');
+      showHostState('qr'); // briefly visible while acceptAnswer runs
       appendLog(hostLog, 'Answer scanned. Connecting…');
       await transfer.acceptAnswer(compressedSdp);
+      stopCycler(); // connected — no need to keep cycling
       showHostState('connected');
       wireTransferButtons('qr-host', transfer);
     } catch (err) {
@@ -380,13 +401,17 @@ export function initWebRTC(storage, { showToast }) {
         appendLog(hostLog, 'Error: ' + err.message);
         showToast('Connection failed: ' + err.message);
       }
-      showHostState('qr');
+      // Resume cycling the offer QR so the other device can re-scan
+      if (hostOfferPayloads) await startHostCycle(hostOfferPayloads);
+      else showHostState('qr');
     }
   });
 
-  $('qr-host-cancel-scan-btn')?.addEventListener('click', () => {
+  $('qr-host-cancel-scan-btn')?.addEventListener('click', async () => {
     stopScan();
-    showHostState('qr');
+    // Resume cycling so the other device can keep scanning
+    if (hostOfferPayloads) await startHostCycle(hostOfferPayloads);
+    else showHostState('qr');
   });
 
   // ── Join panel (answer side) ──────────────────────────────────────────────
@@ -407,6 +432,8 @@ export function initWebRTC(storage, { showToast }) {
   }
 
   function resetJoinPanel() {
+    stopCycler();
+    joinAnswerPayloads = null;
     showJoinState('step1');
     if (joinLog)      { joinLog.textContent = ''; joinLog.style.display = 'none'; }
     if (joinProgWrap)   joinProgWrap.classList.add('hidden');
@@ -443,16 +470,13 @@ export function initWebRTC(storage, { showToast }) {
       wireEvents('qr-join', transfer);
 
       appendLog(joinLog, 'Offer scanned. Generating answer…');
-      const encoded  = await transfer.acceptOffer(compressedSdp);
-      const payloads = encodeForQRs('answer', encoded);
-      await setupQRNav(
-        $('qr-join-canvas'), $('qr-join-counter'),
-        $('qr-join-prev'),   $('qr-join-next'),
-        payloads,
-      );
+      const encoded   = await transfer.acceptOffer(compressedSdp);
+      joinAnswerPayloads = encodeForQRs('answer', encoded);
+      stopCycler();
+      stopCycle = await startQRCycle($('qr-join-canvas'), $('qr-join-counter'), joinAnswerPayloads);
       showJoinState('answer');
-      if (payloads.length > 1) {
-        appendLog(joinLog, `Answer split into ${payloads.length} QR codes — use ‹ / › to step through them.`);
+      if (joinAnswerPayloads.length > 1) {
+        appendLog(joinLog, `Answer split into ${joinAnswerPayloads.length} QR codes, cycling automatically.`);
       } else {
         appendLog(joinLog, 'Show this answer QR to the other device.');
       }
@@ -460,10 +484,12 @@ export function initWebRTC(storage, { showToast }) {
       // Wait for the host to scan the answer QR (resolves when channel opens)
       transfer.waitForConnection()
         .then(() => {
+          stopCycler(); // connected — stop cycling
           showJoinState('connected');
           wireTransferButtons('qr-join', transfer);
         })
         .catch(err => {
+          stopCycler();
           appendLog(joinLog, 'Connection failed: ' + err.message);
           showToast('Connection failed: ' + err.message);
           showJoinState('step1');
