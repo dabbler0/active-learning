@@ -14,7 +14,7 @@ import { IndexedDBBackend } from './storage/indexeddb.js';
 import { initNotes, openNote, refreshNoteList } from './ui/notes.js';
 import { initCitations, updateCitationSettings, openCitation, refreshCitationList } from './ui/citations.js';
 import { initSearch } from './ui/search.js';
-import { initBluetooth } from './ui/bluetooth.js';
+import { initWebRTC } from './ui/webrtc.js';
 
 // ── Storage ────────────────────────────────────────────────────────────────
 
@@ -257,8 +257,8 @@ async function boot() {
   document.getElementById('export-btn-more')?.addEventListener('click', exportData);
   document.getElementById('import-btn-more')?.addEventListener('click', importData);
 
-  // ── Bluetooth ──
-  initBluetooth(storage, { showToast });
+  // ── WebRTC / QR Sync ──
+  initWebRTC(storage, { showToast });
 
   // ── Resizable panels ──
   initResizePanels();

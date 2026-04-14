@@ -18,7 +18,7 @@
   </nav>
   <div class="toolbar-right">
     <span id="backend-label" class="backend-badge" title="Storage backend"></span>
-    <button id="bt-open-btn" class="btn-ghost" title="Bluetooth transfer">&#x1F4F6; Bluetooth</button>
+    <button id="qr-open-btn" class="btn-ghost" title="Sync with another device via QR code">&#x1F4F1; Sync</button>
     <button id="export-btn" class="btn-ghost" title="Export all data as JSON">Export</button>
     <button id="import-btn" class="btn-ghost" title="Import data from JSON file">Import</button>
     <button id="settings-btn" title="Settings">⚙</button>
@@ -161,7 +161,7 @@
     <div class="more-btn-row">
       <button id="export-btn-more" class="btn-ghost">&#x1F4BE; Export JSON</button>
       <button id="import-btn-more" class="btn-ghost">&#x1F4C2; Import JSON</button>
-      <button id="bt-open-btn-more" class="btn-ghost">&#x1F4F6; Bluetooth Transfer</button>
+      <button id="qr-open-btn-more" class="btn-ghost">&#x1F4F1; Sync via QR Code</button>
     </div>
     <p class="more-section-title" style="margin-top:12px">App</p>
     <div class="more-btn-row">
@@ -239,77 +239,127 @@
   </div>
 </div>
 
-<!-- Bluetooth modal -->
-<div id="bt-modal" class="modal-overlay hidden">
+<!-- QR Sync modal -->
+<div id="qr-modal" class="modal-overlay hidden">
   <div class="modal">
-    <h2>&#x1F4F6; Bluetooth Transfer</h2>
+    <h2>&#x1F4F1; Device Sync</h2>
 
     <p class="modal-hint">
-      Transfer your full notes &amp; citations database to or from another
-      device running Philosophy Notes nearby, over Bluetooth LE.
-      <strong>Requires Chrome or Edge (desktop / Android) over HTTPS.</strong>
+      Transfer your full database directly between devices — no server needed.
+      One device shows a QR code; the other scans it to establish a
+      direct peer-to-peer connection.
     </p>
 
-    <!-- Browser support warning (hidden when supported) -->
-    <p id="bt-unsupported" class="bt-unsupported hidden">
-      &#x26A0;&#xFE0F; Web Bluetooth is not available in this browser.<br>
-      Please use <strong>Chrome</strong> or <strong>Edge</strong> on desktop or Android,
-      served over <strong>HTTPS</strong> or <strong>localhost</strong>.
-      Firefox and Safari do not support Web Bluetooth.
-    </p>
-
-    <!-- Tabs: Send / Receive -->
+    <!-- Tabs: Show QR / Scan QR -->
     <div class="bt-tabs">
-      <button id="bt-tab-send"    class="bt-tab active">Send to device</button>
-      <button id="bt-tab-receive" class="bt-tab">Receive from device</button>
+      <button id="qr-tab-host" class="bt-tab active">Show QR</button>
+      <button id="qr-tab-join" class="bt-tab">Scan QR</button>
     </div>
 
-    <!-- ── Send panel ── -->
-    <div id="bt-panel-send" class="bt-panel active">
-      <p class="modal-hint">
-        Exports your local data and writes it to the selected Bluetooth device.
-        The remote device must be running Philosophy Notes and exposing the
-        custom GATT service (e.g. Chrome Canary on Android with
-        <em>Experimental Web Platform Features</em> enabled).
-      </p>
-      <div class="bt-status">
-        <span id="bt-send-dot" class="bt-dot idle"></span>
-        <span id="bt-send-status-text">Ready</span>
+    <!-- ══ Host panel: generate offer QR, then scan answer QR ══ -->
+    <div id="qr-panel-host" class="bt-panel active">
+
+      <!-- Step 1: initial prompt -->
+      <div id="qr-host-step1">
+        <p class="modal-hint">
+          Generate a QR code on this device. The other device will scan it
+          and display an answer QR for you to scan back.
+        </p>
+        <div class="modal-footer">
+          <button id="qr-gen-btn" class="btn-primary">Generate QR Code</button>
+        </div>
       </div>
-      <div class="bt-progress-wrap">
-        <div id="bt-send-progress-bar" class="bt-progress-bar"></div>
+
+      <!-- Step 2: offer QR displayed; waiting for other device to scan -->
+      <div id="qr-host-qr-wrap" class="hidden qr-canvas-wrap">
+        <canvas id="qr-host-canvas"></canvas>
+        <p class="qr-hint">Show this to the other device, then scan their answer QR below.</p>
+        <div class="modal-footer">
+          <button id="qr-scan-answer-btn" class="btn-primary">Scan Answer QR</button>
+        </div>
       </div>
-      <div id="bt-send-log" class="bt-log" style="display:none"></div>
-      <div class="modal-footer">
-        <button id="bt-send-btn" class="btn-primary">Scan &amp; Send</button>
-        <button id="bt-send-cancel-btn" class="btn-ghost hidden">Cancel</button>
+
+      <!-- Step 3: camera open for scanning the answer QR -->
+      <div id="qr-host-scan-wrap" class="hidden">
+        <video id="qr-host-video" class="qr-video" autoplay playsinline muted></video>
+        <p class="qr-hint">Point camera at the answer QR on the other device.</p>
+        <div class="modal-footer">
+          <button id="qr-host-cancel-scan-btn" class="btn-ghost">Cancel</button>
+        </div>
       </div>
+
+      <!-- Step 4: connected — push or pull -->
+      <div id="qr-host-connected" class="hidden">
+        <div class="bt-status">
+          <span class="bt-dot connected"></span>
+          <span>Connected — choose an action:</span>
+        </div>
+        <div class="modal-footer">
+          <button id="qr-host-push-btn" class="btn-primary">Push my data &#x2192;</button>
+          <button id="qr-host-pull-btn" class="btn-secondary">&#x2190; Pull their data</button>
+        </div>
+      </div>
+
+      <!-- Progress + log (shown during transfer) -->
+      <div id="qr-host-progress-wrap" class="bt-progress-wrap hidden">
+        <div id="qr-host-progress-bar" class="bt-progress-bar"></div>
+      </div>
+      <div id="qr-host-log" class="bt-log" style="display:none"></div>
+
     </div>
 
-    <!-- ── Receive panel ── -->
-    <div id="bt-panel-receive" class="bt-panel">
-      <p class="modal-hint">
-        Connects to a nearby device hosting a Philosophy Notes GATT service
-        and imports all its notes and citations into this browser.
-        <strong>This will replace your current data.</strong>
-      </p>
-      <div class="bt-status">
-        <span id="bt-recv-dot" class="bt-dot idle"></span>
-        <span id="bt-recv-status-text">Ready</span>
+    <!-- ══ Join panel: scan offer QR, then display answer QR ══ -->
+    <div id="qr-panel-join" class="bt-panel">
+
+      <!-- Step 1: initial prompt -->
+      <div id="qr-join-step1">
+        <p class="modal-hint">
+          Scan the QR code shown on the other device. An answer QR will
+          appear here for the other device to scan back.
+        </p>
+        <div class="modal-footer">
+          <button id="qr-scan-offer-btn" class="btn-primary">Scan QR Code</button>
+        </div>
       </div>
-      <div class="bt-progress-wrap">
-        <div id="bt-recv-progress-bar" class="bt-progress-bar"></div>
+
+      <!-- Step 2: camera open for scanning the offer QR -->
+      <div id="qr-join-scan-wrap" class="hidden">
+        <video id="qr-join-video" class="qr-video" autoplay playsinline muted></video>
+        <p class="qr-hint">Point camera at the QR code on the other device.</p>
+        <div class="modal-footer">
+          <button id="qr-join-cancel-scan-btn" class="btn-ghost">Cancel</button>
+        </div>
       </div>
-      <div id="bt-recv-log" class="bt-log" style="display:none"></div>
-      <div class="modal-footer">
-        <button id="bt-receive-btn" class="btn-primary">Scan &amp; Receive</button>
-        <button id="bt-recv-cancel-btn" class="btn-ghost hidden">Cancel</button>
+
+      <!-- Step 3 + 4: answer QR (remains visible while waiting / when connected) -->
+      <div id="qr-join-answer-wrap" class="hidden qr-canvas-wrap">
+        <canvas id="qr-join-canvas"></canvas>
+        <p class="qr-hint">Show this answer QR to the other device and wait for the connection.</p>
       </div>
+
+      <!-- Step 4 overlay: connected — push or pull -->
+      <div id="qr-join-connected" class="hidden">
+        <div class="bt-status">
+          <span class="bt-dot connected"></span>
+          <span>Connected — choose an action:</span>
+        </div>
+        <div class="modal-footer">
+          <button id="qr-join-push-btn" class="btn-primary">Push my data &#x2192;</button>
+          <button id="qr-join-pull-btn" class="btn-secondary">&#x2190; Pull their data</button>
+        </div>
+      </div>
+
+      <!-- Progress + log -->
+      <div id="qr-join-progress-wrap" class="bt-progress-wrap hidden">
+        <div id="qr-join-progress-bar" class="bt-progress-bar"></div>
+      </div>
+      <div id="qr-join-log" class="bt-log" style="display:none"></div>
+
     </div>
 
     <!-- Close -->
     <div class="modal-footer" style="border-top:1px solid var(--color-border);padding-top:10px">
-      <button id="bt-close-btn" class="btn-ghost">Close</button>
+      <button id="qr-close-btn" class="btn-ghost">Close</button>
     </div>
   </div>
 </div>
