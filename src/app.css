@@ -646,6 +646,227 @@ html, body {
   font-size: 12px; color: var(--color-text-muted); text-align: center;
 }
 
+/* ── Editor mode bar (sits between header and editor area) ───────────────── */
+.editor-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px 10px 2px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.btn-mode-toggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  padding: 2px 10px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  white-space: nowrap;
+}
+.btn-mode-toggle:hover {
+  background: var(--color-surface2);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* ── Milkdown mount ───────────────────────────────────────────────────────── */
+.mk-mount {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--color-bg);
+  /* Milkdown injects a .milkdown wrapper; give it full height */
+}
+
+.mk-mount .milkdown {
+  height: 100%;
+  min-height: 200px;
+}
+
+/* The actual ProseMirror editing surface */
+.mk-mount .ProseMirror {
+  min-height: 100%;
+  outline: none;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-family: var(--font-ui);
+  line-height: 1.75;
+  color: var(--color-text);
+  background: var(--color-bg);
+  caret-color: var(--color-accent);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Headings */
+.mk-mount .ProseMirror h1 {
+  font-size: 1.35em;
+  font-weight: 700;
+  margin: 1em 0 0.4em;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.2em;
+  color: var(--color-text);
+}
+.mk-mount .ProseMirror h2 {
+  font-size: 1.15em;
+  font-weight: 600;
+  margin: 1em 0 0.35em;
+  color: var(--color-text);
+}
+.mk-mount .ProseMirror h3 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 0.9em 0 0.3em;
+  font-style: italic;
+  color: var(--color-text);
+}
+
+/* Paragraphs */
+.mk-mount .ProseMirror p { margin-bottom: 0.75em; }
+
+/* Inline code */
+.mk-mount .ProseMirror code {
+  font-family: var(--font-mono);
+  background: var(--color-surface2);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.87em;
+  border: 1px solid var(--color-border);
+}
+
+/* Code blocks */
+.mk-mount .ProseMirror pre {
+  background: var(--color-surface2);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 0.8em 0;
+  border: 1px solid var(--color-border);
+}
+.mk-mount .ProseMirror pre code {
+  background: none;
+  padding: 0;
+  border: none;
+  font-size: 13px;
+}
+
+/* Block quote */
+.mk-mount .ProseMirror blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 1em;
+  color: var(--color-text-muted);
+  margin: 0.8em 0;
+  font-style: italic;
+}
+
+/* Lists */
+.mk-mount .ProseMirror ul,
+.mk-mount .ProseMirror ol {
+  margin: 0.5em 0 0.75em 1.5em;
+}
+.mk-mount .ProseMirror li { margin-bottom: 0.25em; }
+
+/* Links (standard markdown links) */
+.mk-mount .ProseMirror a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+/* Horizontal rule */
+.mk-mount .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 1.2em 0;
+}
+
+/* Selection */
+.mk-mount .ProseMirror ::selection {
+  background: rgba(59, 110, 168, 0.2);
+}
+
+/* ── Citation chips (inside WYSIWYG editor) ──────────────────────────────── */
+cite.mk-citation {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(111, 68, 160, 0.10);
+  color: var(--color-accent2);
+  border: 1px solid rgba(111, 68, 160, 0.25);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 0.87em;
+  font-style: normal;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+  vertical-align: baseline;
+  line-height: 1.6;
+}
+
+/* ── Note-link chips (inside WYSIWYG editor) ─────────────────────────────── */
+a.mk-notelink {
+  display: inline;
+  color: var(--color-accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--color-accent);
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  font-style: normal;
+}
+a.mk-notelink:hover {
+  border-bottom-style: solid;
+}
+
+/* ── Autocomplete dropdown ────────────────────────────────────────────────── */
+.mk-autocomplete {
+  position: absolute;
+  z-index: 500;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  min-width: 220px;
+  max-width: 380px;
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 13px;
+  display: none; /* shown by JS */
+}
+
+.mk-autocomplete-item {
+  padding: 7px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--transition);
+}
+.mk-autocomplete-item:last-child { border-bottom: none; }
+.mk-autocomplete-item:hover,
+.mk-autocomplete-item.mk-ac-selected {
+  background: var(--color-surface2);
+}
+
+.mk-ac-label {
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mk-ac-sub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Hidden by default (desktop); the @media block below overrides on mobile ── */
 #mobile-nav        { display: none; }
 #mobile-more-panel { display: none; }
@@ -752,6 +973,15 @@ html, body {
 
   /* ── Editor panel — full width, remove fixed sidebar widths ── */
   #editor-panel { width: 100%; }
+
+  /* ── Mode bar on mobile ── */
+  .editor-mode-bar { padding: 4px 10px; }
+
+  /* ── Milkdown mount on mobile ── */
+  .mk-mount .ProseMirror {
+    padding: 12px;
+    font-size: 15px; /* slightly larger for touch */
+  }
 
   /* ── Note editor footer — stack vertically on small screens ── */
   .editor-footer {

@@ -1,25 +1,63 @@
 /**
  * Notes panel UI module.
  *
- * Manages the left-panel note list, the note editor view (title + tags + CodeMirror),
- * the live preview panel, and print/PDF output.
+ * Manages the left-panel note list, the note editor view (title + tags +
+ * either CodeMirror or Milkdown WYSIWYG), the live preview panel, and
+ * print/PDF output.
  *
- * Depends on: storage backend (injected), createEditor, renderFull, printNote.
+ * Editor modes
+ * ────────────
+ * • "codemirror" (default) — plain-text source with syntax highlighting.
+ * • "milkdown"             — rich-text WYSIWYG; custom [[note:]] and [@cite]
+ *   syntax is preserved in storage but rendered as atomic chips in the editor.
+ *
+ * The toggle button (#editor-mode-btn) switches between modes, transferring
+ * the current content and persisting the preference to localStorage.
+ *
+ * Depends on: storage backend (injected), createEditor, renderFull, printNote,
+ *             createMilkdownEditor.
  */
 
 import { createEditor, setEditorContent, getEditorContent } from './editor.js';
+import { createMilkdownEditor } from './milkdown-editor.js';
 import { renderFull, extractCitekeys } from '../services/markdown.js';
 import { printNote, themeList } from '../services/pdf.js';
 
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const SETTINGS_KEY = 'philosophy-js-settings';
+
 // ── State ──────────────────────────────────────────────────────────────────
 
-let _storage    = null;
-let _editorView = null;
-let _currentNote = null;   // full note object being edited
-let _notes       = [];     // cached list for sidebar
+let _storage     = null;
+let _editorView  = null;           // CodeMirror EditorView (always present)
+let _mkEditor    = null;           // Milkdown editor handle (created on first switch)
+let _editorMode  = 'codemirror';   // 'codemirror' | 'milkdown'
+let _currentNote = null;
+let _notes       = [];
+let _cachedCitations = [];         // kept fresh for Milkdown autocomplete
+let _mkSaveTimer    = null;        // debounce timer for Milkdown auto-save
 
-// DOM refs (populated by init())
+// DOM refs
 const $ = id => document.getElementById(id);
+
+// ── Settings helpers ───────────────────────────────────────────────────────
+
+function loadEditorMode() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
+    return s.editorMode === 'milkdown' ? 'milkdown' : 'codemirror';
+  } catch {
+    return 'codemirror';
+  }
+}
+
+function saveEditorMode(mode) {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...s, editorMode: mode }));
+  } catch { /* ignore */ }
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -50,13 +88,27 @@ function escHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// ── Active editor access ───────────────────────────────────────────────────
+
+function getActiveContent() {
+  if (_editorMode === 'milkdown' && _mkEditor) return _mkEditor.getValue();
+  return _editorView ? getEditorContent(_editorView) : '';
+}
+
+function setActiveContent(text) {
+  if (_editorMode === 'milkdown' && _mkEditor) {
+    _mkEditor.setValue(text);
+  } else if (_editorView) {
+    setEditorContent(_editorView, text);
+  }
+}
+
 // ── Live preview ───────────────────────────────────────────────────────────
 
 async function updatePreview(markdown) {
   const previewEl = $('note-preview');
   if (!previewEl) return;
 
-  // Collect citations for rendering
   const citekeys = extractCitekeys(markdown);
   const citationMap = new Map();
   if (citekeys.length) {
@@ -66,18 +118,20 @@ async function updatePreview(markdown) {
     }
   }
   previewEl.innerHTML = renderFull(markdown, citationMap, 'authoryear');
-  // Make internal note-links clickable
   previewEl.querySelectorAll('a.note-link[data-slug]').forEach(a => {
     a.addEventListener('click', e => {
       e.preventDefault();
-      const slug = a.dataset.slug;
-      const note = _notes.find(n => n.slug === slug);
+      const note = _notes.find(n => n.slug === a.dataset.slug);
       if (note) openNote(note);
     });
   });
 }
 
 // ── List ───────────────────────────────────────────────────────────────────
+
+function refreshCitationsCache() {
+  _storage.listCitations().then(cs => { _cachedCitations = cs; });
+}
 
 async function refreshList(filterText = '') {
   _notes = await _storage.listNotes();
@@ -110,16 +164,93 @@ async function openNote(note) {
   $('note-tags').value  = tagsToString(note.tags);
   $('word-count').textContent = `${wordCount(note.body ?? '')} words`;
 
-  if (_editorView) {
-    setEditorContent(_editorView, note.body ?? '');
+  const body = note.body ?? '';
+
+  if (_editorMode === 'milkdown') {
+    if (_mkEditor) {
+      _mkEditor.setValue(body);
+    } else {
+      await mountMilkdown(body);
+    }
+  } else {
+    if (_editorView) setEditorContent(_editorView, body);
   }
 
-  // Refresh sidebar highlight
   document.querySelectorAll('#note-list .item').forEach(li => {
     li.classList.toggle('active', li.dataset.id === String(note.id));
   });
 
-  await updatePreview(note.body ?? '');
+  await updatePreview(body);
+}
+
+// ── Milkdown mount / tear-down ─────────────────────────────────────────────
+
+async function mountMilkdown(initialContent) {
+  const mountEl = $('mk-editor-mount');
+  if (!mountEl) return;
+
+  _mkEditor = await createMilkdownEditor(mountEl, {
+    initialContent,
+    onChange: (markdown) => {
+      if (_editorMode !== 'milkdown') return; // guard while switching
+      $('word-count').textContent = `${wordCount(markdown)} words`;
+      // Debounced auto-save + preview refresh
+      clearTimeout(_mkSaveTimer);
+      _mkSaveTimer = setTimeout(() => {
+        updatePreview(markdown);
+        saveCurrentNote(markdown);
+      }, 2000);
+    },
+    getNotes: () => _notes,
+    getCitations: () => _cachedCitations,
+    onNoteClick: (slug) => {
+      const note = _notes.find(n => n.slug === slug);
+      if (note) openNote(note);
+    },
+    onCitationClick: (_citekey) => {
+      // Citation clicking in WYSIWYG mode: do nothing extra for now.
+      // The right preview panel already shows the resolved bibliography.
+    },
+  });
+}
+
+// ── Editor mode toggle ─────────────────────────────────────────────────────
+
+async function toggleEditorMode() {
+  const content = getActiveContent();
+  _editorMode = _editorMode === 'codemirror' ? 'milkdown' : 'codemirror';
+  saveEditorMode(_editorMode);
+  await applyEditorMode(content);
+}
+
+async function applyEditorMode(content) {
+  const cmMount = $('cm-editor-mount');
+  const mkMount = $('mk-editor-mount');
+  const btn     = $('editor-mode-btn');
+
+  if (_editorMode === 'milkdown') {
+    // Show Milkdown, hide CodeMirror
+    cmMount?.classList.add('hidden');
+    mkMount?.classList.remove('hidden');
+    if (btn) btn.textContent = 'Source';
+
+    if (!_mkEditor) {
+      await mountMilkdown(content);
+    } else {
+      _mkEditor.setValue(content);
+      _mkEditor.focus();
+    }
+  } else {
+    // Show CodeMirror, hide Milkdown
+    cmMount?.classList.remove('hidden');
+    mkMount?.classList.add('hidden');
+    if (btn) btn.textContent = 'Rich Text';
+
+    if (_editorView) {
+      setEditorContent(_editorView, content);
+      _editorView.focus();
+    }
+  }
 }
 
 // ── Save ───────────────────────────────────────────────────────────────────
@@ -129,11 +260,12 @@ async function saveCurrentNote(body) {
 
   const title = $('note-title').value.trim() || 'Untitled';
   const tags  = tagsFromString($('note-tags').value);
+  const text  = body ?? getActiveContent();
 
   const saved = await _storage.saveNote({
     ..._currentNote,
     title,
-    body: body ?? getEditorContent(_editorView),
+    body: text,
     tags,
   });
 
@@ -142,10 +274,10 @@ async function saveCurrentNote(body) {
 
   showToast('Saved');
   $('word-count').textContent = `${wordCount(saved.body)} words`;
+  refreshCitationsCache(); // keep Milkdown autocomplete fresh
   await refreshList($('note-search').value);
 
   if (isNew) {
-    // Highlight new note in list
     document.querySelectorAll('#note-list .item').forEach(li => {
       li.classList.toggle('active', li.dataset.id === String(saved.id));
     });
@@ -168,7 +300,7 @@ async function newNote() {
   $('note-tags').value  = '';
   $('word-count').textContent = '0 words';
 
-  if (_editorView) setEditorContent(_editorView, '');
+  setActiveContent('');
   $('note-title').focus();
   document.querySelectorAll('#note-list .item').forEach(li => li.classList.remove('active'));
 
@@ -192,8 +324,7 @@ async function deleteCurrentNote() {
 // ── Print ──────────────────────────────────────────────────────────────────
 
 async function printCurrentNote() {
-  if (!_editorView) return;
-  const body    = getEditorContent(_editorView);
+  const body    = getActiveContent();
   const title   = $('note-title').value.trim() || 'Untitled';
   const themeId = $('print-theme-select')?.value ?? 'academic';
   const author  = $('compile-author')?.value ?? '';
@@ -233,6 +364,13 @@ function showToast(msg) {
 export async function initNotes(storage, { getCitations } = {}) {
   _storage = storage;
 
+  // Prime the citation cache (used by Milkdown autocomplete).
+  // refreshCitationsCache() is also called after saves to stay fresh.
+  refreshCitationsCache();
+
+  // Restore persisted editor mode
+  _editorMode = loadEditorMode();
+
   // Populate print theme selector
   const themeSelect = $('print-theme-select');
   if (themeSelect) {
@@ -244,23 +382,42 @@ export async function initNotes(storage, { getCitations } = {}) {
     });
   }
 
-  // Create CodeMirror editor
-  const mountEl = $('cm-editor-mount');
-  if (mountEl) {
-    _editorView = createEditor(mountEl, {
+  // Always create the CodeMirror editor (it lives in the background when
+  // Milkdown mode is active).
+  const cmMount = $('cm-editor-mount');
+  if (cmMount) {
+    _editorView = createEditor(cmMount, {
       initialDoc:   '',
-      getNotes:     () => _storage.listNotes(),
-      getCitations: getCitations ?? (() => _storage.listCitations()),
-      onSave:       body => saveCurrentNote(body),
-      onUpdate:     count => {
+      getNotes:     () => storage.listNotes(),
+      getCitations: () => (getCitations ?? (() => storage.listCitations()))(),
+      onSave:       body => {
+        if (_editorMode === 'codemirror') saveCurrentNote(body);
+      },
+      onUpdate: count => {
+        if (_editorMode !== 'codemirror') return;
         $('word-count').textContent = `${count} words`;
-        // Debounce preview refresh
         clearTimeout(_editorView._previewTimer);
         _editorView._previewTimer = setTimeout(
-          () => updatePreview(getEditorContent(_editorView)), 600
+          () => updatePreview(getEditorContent(_editorView)), 600,
         );
       },
     });
+  }
+
+  // Apply the initial mode (show/hide mounts, set button label)
+  const cmMountEl = $('cm-editor-mount');
+  const mkMountEl = $('mk-editor-mount');
+  const modeBtn   = $('editor-mode-btn');
+
+  if (_editorMode === 'milkdown') {
+    cmMountEl?.classList.add('hidden');
+    mkMountEl?.classList.remove('hidden');
+    if (modeBtn) modeBtn.textContent = 'Source';
+    // The Milkdown editor itself is created lazily in openNote()
+  } else {
+    cmMountEl?.classList.remove('hidden');
+    mkMountEl?.classList.add('hidden');
+    if (modeBtn) modeBtn.textContent = 'Rich Text';
   }
 
   // Bind UI events
@@ -268,12 +425,31 @@ export async function initNotes(storage, { getCitations } = {}) {
   $('save-btn')?.addEventListener('click', () => saveCurrentNote());
   $('delete-note-btn')?.addEventListener('click', deleteCurrentNote);
   $('print-btn')?.addEventListener('click', printCurrentNote);
-
   $('note-search')?.addEventListener('input', e => refreshList(e.target.value));
 
-  // Note title: save on Enter
+  // Mode toggle
+  modeBtn?.addEventListener('click', toggleEditorMode);
+
+  // Note title: move focus to editor on Enter
   $('note-title')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); _editorView?.focus(); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (_editorMode === 'milkdown' && _mkEditor) {
+        _mkEditor.focus();
+      } else {
+        _editorView?.focus();
+      }
+    }
+  });
+
+  // Ctrl+S in Milkdown mode (CodeMirror mode has its own built-in Ctrl+S keymap)
+  document.addEventListener('keydown', e => {
+    if (_editorMode !== 'milkdown') return;
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      clearTimeout(_mkSaveTimer);
+      saveCurrentNote();
+    }
   });
 
   await refreshList();
