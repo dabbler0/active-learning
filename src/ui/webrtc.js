@@ -74,7 +74,7 @@ function encodeForQRs(role, compressedSdp) {
 
 // ── Auto-cycling QR display ───────────────────────────────────────────────────
 
-const QR_CYCLE_MS = 2000; // milliseconds per QR code
+const QR_CYCLE_MS = 200; // milliseconds per QR code
 
 /**
  * Render a QR sequence onto a canvas, cycling automatically every QR_CYCLE_MS.
