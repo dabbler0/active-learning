@@ -270,15 +270,13 @@
         </div>
       </div>
 
-      <!-- Step 2: offer QR displayed; waiting for other device to scan -->
+      <!-- Step 2: offer QR displayed; cycles automatically -->
       <div id="qr-host-qr-wrap" class="hidden qr-canvas-wrap">
         <canvas id="qr-host-canvas"></canvas>
         <div class="qr-nav">
-          <button id="qr-host-prev" class="btn-ghost qr-nav-btn hidden">&#x2039; Prev</button>
           <span id="qr-host-counter" class="qr-counter hidden"></span>
-          <button id="qr-host-next" class="btn-ghost qr-nav-btn hidden">Next &#x203A;</button>
         </div>
-        <p class="qr-hint">Show each QR code to the other device, then scan their answer QR below.</p>
+        <p class="qr-hint">QR codes cycle automatically — keep the screen visible to the other device's camera.</p>
         <div class="modal-footer">
           <button id="qr-scan-answer-btn" class="btn-primary">Scan Answer QR</button>
         </div>
@@ -336,15 +334,13 @@
         </div>
       </div>
 
-      <!-- Step 3: answer QR displayed; waiting for host to scan it -->
+      <!-- Step 3: answer QR displayed; cycles automatically -->
       <div id="qr-join-answer-wrap" class="hidden qr-canvas-wrap">
         <canvas id="qr-join-canvas"></canvas>
         <div class="qr-nav">
-          <button id="qr-join-prev" class="btn-ghost qr-nav-btn hidden">&#x2039; Prev</button>
           <span id="qr-join-counter" class="qr-counter hidden"></span>
-          <button id="qr-join-next" class="btn-ghost qr-nav-btn hidden">Next &#x203A;</button>
         </div>
-        <p class="qr-hint">Show each QR code to the other device and wait for the connection.</p>
+        <p class="qr-hint">QR codes cycle automatically — keep the screen visible to the other device's camera.</p>
       </div>
 
       <!-- Step 4 overlay: connected — push or pull -->
