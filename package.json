@@ -17,8 +17,15 @@
     "esbuild": "^0.24.0"
   },
   "dependencies": {
+    "@milkdown/core": "^7.20.0",
+    "@milkdown/ctx": "^7.20.0",
+    "@milkdown/plugin-listener": "^7.20.0",
+    "@milkdown/preset-commonmark": "^7.20.0",
+    "@milkdown/transformer": "^7.20.0",
+    "@milkdown/utils": "^7.20.0",
     "jsqr": "^1.4.0",
     "markdown-it": "^14.1.0",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "unist-util-visit": "^5.1.0"
   }
 }

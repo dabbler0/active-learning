@@ -75,8 +75,16 @@
         </div>
       </div>
 
-      <!-- CodeMirror mount (fills remaining space) -->
+      <!-- Editor mode toggle (shown above the active editor) -->
+      <div class="editor-mode-bar">
+        <button id="editor-mode-btn" class="btn-mode-toggle" title="Switch editor mode">Rich Text</button>
+      </div>
+
+      <!-- CodeMirror mount (source mode) -->
       <div id="cm-editor-mount" class="cm-mount"></div>
+
+      <!-- Milkdown mount (rich-text / WYSIWYG mode) -->
+      <div id="mk-editor-mount" class="mk-mount hidden"></div>
 
       <div class="editor-footer">
         <span id="word-count">0 words</span>
