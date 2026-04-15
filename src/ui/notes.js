@@ -37,7 +37,19 @@ let _editorMode  = 'codemirror';   // 'codemirror' | 'milkdown'
 let _currentNote = null;
 let _notes       = [];
 let _cachedCitations = [];         // kept fresh for Milkdown autocomplete
-let _mkSaveTimer    = null;        // debounce timer for Milkdown auto-save
+
+// ── Autosave state ─────────────────────────────────────────────────────────
+// Pattern: save at most once per AUTO_SAVE_INTERVAL ms while dirty.
+// When a change arrives, schedule a save for (interval − time_since_last_save)
+// ms in the future. If another change arrives before that fires, do nothing
+// (timer already set). After each successful save, reset _lastSavedAt so the
+// next burst of typing will again wait a full interval.
+
+const AUTO_SAVE_INTERVAL = 3000;   // ms
+let _lastSavedAt   = Date.now();   // treat app load as a recent save
+let _dirty         = false;
+let _autoSaveTimer = null;
+let _previewTimer  = null;         // debounced preview refresh
 
 // DOM refs
 const $ = id => document.getElementById(id);
@@ -87,6 +99,18 @@ function renderNoteItem(note, activeId) {
 
 function escHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ── Autosave ───────────────────────────────────────────────────────────────
+
+function markDirty() {
+  _dirty = true;
+  if (_autoSaveTimer !== null) return; // save already scheduled
+  const delay = Math.max(0, AUTO_SAVE_INTERVAL - (Date.now() - _lastSavedAt));
+  _autoSaveTimer = setTimeout(async () => {
+    _autoSaveTimer = null;
+    if (_dirty) saveCurrentNote(getActiveContent());
+  }, delay);
 }
 
 // ── Active editor access ───────────────────────────────────────────────────
@@ -154,6 +178,12 @@ async function refreshList(filterText = '') {
 // ── Open / edit ────────────────────────────────────────────────────────────
 
 async function openNote(note) {
+  // Cancel any pending autosave for the previous note
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = null;
+  _dirty = false;
+  _lastSavedAt = Date.now();
+
   _currentNote = note;
   $('welcome-screen')?.classList.add('hidden');
   $('note-editor')?.classList.remove('hidden');
@@ -182,6 +212,9 @@ async function openNote(note) {
   });
 
   await updatePreview(body);
+
+  // On mobile, automatically switch to the edit panel when a note is opened
+  window.dispatchEvent(new Event('mobile-open-edit'));
 }
 
 // ── Milkdown mount / tear-down ─────────────────────────────────────────────
@@ -195,12 +228,10 @@ async function mountMilkdown(initialContent) {
     onChange: (markdown) => {
       if (_editorMode !== 'milkdown') return; // guard while switching
       $('word-count').textContent = `${wordCount(markdown)} words`;
-      // Debounced auto-save + preview refresh
-      clearTimeout(_mkSaveTimer);
-      _mkSaveTimer = setTimeout(() => {
-        updatePreview(markdown);
-        saveCurrentNote(markdown);
-      }, 2000);
+      markDirty();
+      // Refresh preview on a short debounce (independent of save timing)
+      clearTimeout(_previewTimer);
+      _previewTimer = setTimeout(() => updatePreview(markdown), 600);
     },
     getNotes: () => _notes,
     getCitations: () => _cachedCitations,
@@ -260,6 +291,12 @@ async function applyEditorMode(content) {
 async function saveCurrentNote(body) {
   if (!_currentNote && !$('note-title').value.trim()) return;
 
+  // Mark clean and cancel any pending autosave before the async work begins
+  _dirty = false;
+  _lastSavedAt = Date.now();
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = null;
+
   const title = $('note-title').value.trim() || 'Untitled';
   const tags  = tagsFromString($('note-tags').value);
   const text  = body ?? getActiveContent();
@@ -291,6 +328,11 @@ async function saveCurrentNote(body) {
 // ── New note ───────────────────────────────────────────────────────────────
 
 async function newNote() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = null;
+  _dirty = false;
+  _lastSavedAt = Date.now();
+
   _currentNote = null;
   $('welcome-screen')?.classList.add('hidden');
   $('note-editor')?.classList.remove('hidden');
@@ -398,8 +440,9 @@ export async function initNotes(storage, { getCitations } = {}) {
       onUpdate: count => {
         if (_editorMode !== 'codemirror') return;
         $('word-count').textContent = `${count} words`;
-        clearTimeout(_editorView._previewTimer);
-        _editorView._previewTimer = setTimeout(
+        markDirty();
+        clearTimeout(_previewTimer);
+        _previewTimer = setTimeout(
           () => updatePreview(getEditorContent(_editorView)), 600,
         );
       },
@@ -450,7 +493,6 @@ export async function initNotes(storage, { getCitations } = {}) {
     if (_editorMode !== 'milkdown') return;
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
-      clearTimeout(_mkSaveTimer);
       saveCurrentNote();
     }
   });
