@@ -50,12 +50,13 @@ function makeNoteCompletions(getNotes) {
   };
 }
 
-function makeCiteCompletions(getCitations) {
+function makeCiteCompletions(getCitations, onCreateCitation) {
   return async function citeSource(context) {
     // Trigger: [@ with any characters after (no ]] yet)
     const m = context.matchBefore(/\[@[^\]]*$/);
     if (!m) return null;
-    const query = m.text.slice(2).toLowerCase();
+    const query     = m.text.slice(2).toLowerCase();
+    const matchFrom = m.from; // position of the '[' character
 
     const citations = await getCitations();
     const options = citations
@@ -81,6 +82,27 @@ function makeCiteCompletions(getCitations) {
           },
         };
       });
+
+    // "Create new citation" option — always shown when a callback is wired up
+    if (onCreateCitation) {
+      options.push({
+        label:        '[@+new]',
+        displayLabel: query ? `+ Create citation for "${query}"` : '+ Create new citation',
+        detail:       'Search OpenAlex or enter manually',
+        type:         'text',
+        // Sorted to the bottom of the list
+        boost:        -99,
+        apply(view, _completion, from, to) {
+          // Remove the typed [@... text, then open the citation modal
+          view.dispatch({ changes: { from, to, insert: '' } });
+          onCreateCitation(query, citekey => {
+            // Insert at the original match position (unchanged after deletion above)
+            view.dispatch({ changes: { from: matchFrom, to: matchFrom, insert: `[@${citekey}]` } });
+            view.focus();
+          });
+        },
+      });
+    }
 
     if (!options.length) return null;
     return { from: m.from, filter: false, options };
@@ -121,13 +143,17 @@ const editorTheme = EditorView.theme({
  * @param {HTMLElement} mount       - DOM element to mount into
  * @param {object}      opts
  * @param {string}      opts.initialDoc
- * @param {Function}    opts.getNotes       - async () => Note[]
- * @param {Function}    opts.getCitations   - async () => Citation[]
- * @param {Function}    opts.onSave         - async (content: string) => void
- * @param {Function}    opts.onUpdate       - (wordCount: number) => void
+ * @param {Function}    opts.getNotes           - async () => Note[]
+ * @param {Function}    opts.getCitations       - async () => Citation[]
+ * @param {Function}    opts.onSave             - async (content: string) => void
+ * @param {Function}    opts.onUpdate           - (wordCount: number) => void
+ * @param {Function}    [opts.onCreateCitation] - (query, onInsert) => void
+ *                        Called when the user picks "+ Create new citation" from
+ *                        the [@ autocomplete. onInsert(citekey) is called after
+ *                        the citation is saved so the editor can insert [@citekey].
  * @returns {EditorView}
  */
-export function createEditor(mount, { initialDoc = '', getNotes, getCitations, onSave, onUpdate }) {
+export function createEditor(mount, { initialDoc = '', getNotes, getCitations, onSave, onUpdate, onCreateCitation }) {
   let saveTimer = null;
 
   const saveExtension = EditorView.updateListener.of(update => {
@@ -167,7 +193,7 @@ export function createEditor(mount, { initialDoc = '', getNotes, getCitations, o
       autocompletion({
         override: [
           makeNoteCompletions(getNotes),
-          makeCiteCompletions(getCitations),
+          makeCiteCompletions(getCitations, onCreateCitation),
         ],
         activateOnTyping: true,
       }),

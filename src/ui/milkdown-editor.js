@@ -93,7 +93,7 @@ function escHtml(s) {
  * getNotes / getCitations are called synchronously; they should return the
  * currently cached arrays (not Promises) for snappy UI.
  */
-function makeAutocompletePlugin({ getNotes, getCitations, onNoteClick, onCitationClick }) {
+function makeAutocompletePlugin({ getNotes, getCitations, onNoteClick, onCitationClick, onCreateCitation }) {
   let dropdown = null;
   let acState = null; // { type, query, from, selected, items }
 
@@ -120,14 +120,33 @@ function makeAutocompletePlugin({ getNotes, getCitations, onNoteClick, onCitatio
     el.innerHTML = '';
     items.forEach((item, i) => {
       const div = document.createElement('div');
-      div.className = 'mk-autocomplete-item' + (i === acState.selected ? ' mk-ac-selected' : '');
+      div.className = 'mk-autocomplete-item' + (i === acState.selected ? ' mk-ac-selected' : '')
+        + (item.isCreate ? ' mk-ac-create' : '');
       div.setAttribute('role', 'option');
       div.innerHTML =
         `<span class="mk-ac-label">${escHtml(item.label)}</span>` +
         (item.sub ? `<span class="mk-ac-sub">${escHtml(item.sub)}</span>` : '');
       div.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        insertItem(view, ctx, item);
+        if (item.isCreate && onCreateCitation) {
+          // Capture position before any mutations
+          const savedFrom = ctx.from;
+          const currentPos = view.state.selection.from;
+          // Remove the typed [@... fragment
+          if (currentPos > savedFrom) {
+            view.dispatch(view.state.tr.delete(savedFrom, currentPos));
+          }
+          hideDropdown();
+          onCreateCitation(ctx.query ?? '', (citekey) => {
+            // Insert citation node at the original position
+            const schema = view.state.schema;
+            const node = schema.nodes.citation.create({ citekey, locator: '' });
+            view.dispatch(view.state.tr.insert(savedFrom, node));
+            view.focus();
+          });
+        } else {
+          insertItem(view, ctx, item);
+        }
       });
       el.appendChild(div);
     });
@@ -166,7 +185,7 @@ function makeAutocompletePlugin({ getNotes, getCitations, onNoteClick, onCitatio
     const q = (ctx.query ?? '').toLowerCase();
     if (ctx.type === 'citation') {
       const citations = getCitations ? getCitations() : [];
-      return citations
+      const matches = citations
         .filter(
           (c) =>
             !q ||
@@ -179,11 +198,22 @@ function makeAutocompletePlugin({ getNotes, getCitations, onNoteClick, onCitatio
           const auth = (c.authors ?? [])[0]?.split(',')[0] ?? '';
           const yr = c.year ?? '';
           return {
-            label: c.citekey,
-            sub: [auth, yr, c.title].filter(Boolean).join(', ').slice(0, 70),
+            label:   c.citekey,
+            sub:     [auth, yr, c.title].filter(Boolean).join(', ').slice(0, 70),
             citekey: c.citekey,
           };
         });
+
+      // Always append a "Create new citation" option when the callback is available
+      if (onCreateCitation) {
+        matches.push({
+          label:    q ? `+ Create citation for "${q}"` : '+ Create new citation',
+          sub:      'Search OpenAlex or enter manually',
+          isCreate: true,
+        });
+      }
+
+      return matches;
     } else {
       const notes = getNotes ? getNotes() : [];
       return notes
@@ -312,11 +342,14 @@ function makeAutocompletePlugin({ getNotes, getCitations, onNoteClick, onCitatio
  * @param {HTMLElement} container  - Empty mount element
  * @param {object}      opts
  * @param {string}      [opts.initialContent='']
- * @param {Function}    [opts.onChange]          - Called with markdown string on change
- * @param {Function}    [opts.getNotes]          - Sync: () => Note[]
- * @param {Function}    [opts.getCitations]      - Sync: () => Citation[]
- * @param {Function}    [opts.onNoteClick]       - (slug: string) => void
- * @param {Function}    [opts.onCitationClick]   - (citekey: string) => void
+ * @param {Function}    [opts.onChange]            - Called with markdown string on change
+ * @param {Function}    [opts.getNotes]            - Sync: () => Note[]
+ * @param {Function}    [opts.getCitations]        - Sync: () => Citation[]
+ * @param {Function}    [opts.onNoteClick]         - (slug: string) => void
+ * @param {Function}    [opts.onCitationClick]     - (citekey: string) => void
+ * @param {Function}    [opts.onCreateCitation]    - (query, onInsert) => void
+ *                        Called when the user picks "+ Create new citation" from
+ *                        the [@ autocomplete. onInsert(citekey) inserts the node.
  * @returns {Promise<{ getValue, setValue, destroy, focus }>}
  */
 export async function createMilkdownEditor(container, opts = {}) {
@@ -327,6 +360,7 @@ export async function createMilkdownEditor(container, opts = {}) {
     getCitations,
     onNoteClick,
     onCitationClick,
+    onCreateCitation,
   } = opts;
 
   const autocomplete = makeAutocompletePlugin({
@@ -334,6 +368,7 @@ export async function createMilkdownEditor(container, opts = {}) {
     getCitations,
     onNoteClick,
     onCitationClick,
+    onCreateCitation,
   });
 
   const editor = await Editor.make()
