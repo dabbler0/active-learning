@@ -333,15 +333,18 @@
         </div>
       </div>
 
-      <!-- Step 4: connected — push or pull -->
+      <!-- Step 4: connected — sync -->
       <div id="qr-host-connected" class="hidden">
         <div class="bt-status">
           <span class="bt-dot connected"></span>
-          <span>Connected — choose an action:</span>
+          <span>Connected &mdash; ready to merge.</span>
         </div>
+        <p class="modal-hint">
+          Sync exchanges both databases and merges them on each device.
+          You will be asked to resolve any conflicts before changes are saved.
+        </p>
         <div class="modal-footer">
-          <button id="qr-host-push-btn" class="btn-primary">Push my data &#x2192;</button>
-          <button id="qr-host-pull-btn" class="btn-secondary">&#x2190; Pull their data</button>
+          <button id="qr-host-sync-btn" class="btn-primary">&#x21C4; Sync &amp; Merge</button>
         </div>
       </div>
 
@@ -385,15 +388,18 @@
         <p class="qr-hint">QR codes cycle automatically — keep the screen visible to the other device's camera.</p>
       </div>
 
-      <!-- Step 4 overlay: connected — push or pull -->
+      <!-- Step 4 overlay: connected — sync -->
       <div id="qr-join-connected" class="hidden">
         <div class="bt-status">
           <span class="bt-dot connected"></span>
-          <span>Connected — choose an action:</span>
+          <span>Connected &mdash; ready to merge.</span>
         </div>
+        <p class="modal-hint">
+          Sync exchanges both databases and merges them on each device.
+          You will be asked to resolve any conflicts before changes are saved.
+        </p>
         <div class="modal-footer">
-          <button id="qr-join-push-btn" class="btn-primary">Push my data &#x2192;</button>
-          <button id="qr-join-pull-btn" class="btn-secondary">&#x2190; Pull their data</button>
+          <button id="qr-join-sync-btn" class="btn-primary">&#x21C4; Sync &amp; Merge</button>
         </div>
       </div>
 

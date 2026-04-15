@@ -262,6 +262,185 @@ export function initWebRTC(storage, { showToast }) {
   hostTab?.addEventListener('click', () => activateTab('host'));
   joinTab?.addEventListener('click', () => activateTab('join'));
 
+  // ── Merge helpers ─────────────────────────────────────────────────────────
+
+  function newUUID() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /**
+   * Show a conflict-resolution dialog for a single overlapping item.
+   * Resolves with 'newer' (discard the older copy) or 'both' (keep both).
+   */
+  function showConflictDialog({ kind, title, localUpdated, remoteUpdated, isNewerLocal }) {
+    return new Promise(resolve => {
+      const newerSide = isNewerLocal ? 'local'  : 'remote';
+      const olderSide = isNewerLocal ? 'remote' : 'local';
+      const newerDate = new Date(isNewerLocal ? localUpdated : remoteUpdated).toLocaleString();
+      const olderDate = new Date(isNewerLocal ? remoteUpdated : localUpdated).toLocaleString();
+
+      const overlay = document.createElement('div');
+      overlay.className = 'conflict-overlay';
+      overlay.innerHTML = `
+        <div class="conflict-dialog">
+          <p class="conflict-label">Sync conflict &mdash; ${kind === 'note' ? 'Note' : 'Citation'}</p>
+          <p class="conflict-item-name">&ldquo;${escapeHtml(title)}&rdquo;</p>
+          <p class="conflict-desc">
+            Both devices have this ${kind}. The <strong>${newerSide} version</strong> is newer.
+          </p>
+          <table class="conflict-table">
+            <tr>
+              <td class="conflict-side newer">Newer &mdash; ${newerSide}</td>
+              <td class="conflict-date">${newerDate}</td>
+            </tr>
+            <tr>
+              <td class="conflict-side older">Older &mdash; ${olderSide}</td>
+              <td class="conflict-date">${olderDate}</td>
+            </tr>
+          </table>
+          <p class="conflict-question">Keep only the newer version, or duplicate both?</p>
+          <div class="conflict-btns">
+            <button class="btn-primary conflict-newer-btn">Use newer version</button>
+            <button class="btn-ghost conflict-both-btn">Keep both</button>
+          </div>
+        </div>`;
+
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('.conflict-newer-btn').onclick = () => {
+        document.body.removeChild(overlay);
+        resolve('newer');
+      };
+      overlay.querySelector('.conflict-both-btn').onclick = () => {
+        document.body.removeChild(overlay);
+        resolve('both');
+      };
+    });
+  }
+
+  /**
+   * Compute the merged database from two dumps, showing a conflict dialog
+   * for each overlapping item.  Returns a new dump ready for importAll().
+   */
+  async function performMerge(localDump, remoteDump) {
+    const mergedNotes      = [];
+    const mergedCitations  = [];
+
+    // ── Notes (keyed by id / UUID) ──────────────────────────────────────────
+    const localNoteMap  = new Map((localDump.notes  ?? []).map(n => [n.id, n]));
+    const remoteNoteMap = new Map((remoteDump.notes ?? []).map(n => [n.id, n]));
+
+    // Items only on one side — take as-is
+    for (const [id, n] of localNoteMap)  if (!remoteNoteMap.has(id)) mergedNotes.push(n);
+    for (const [id, n] of remoteNoteMap) if (!localNoteMap.has(id))  mergedNotes.push(n);
+
+    // Items on both sides — resolve conflicts
+    for (const [id, localNote] of localNoteMap) {
+      if (!remoteNoteMap.has(id)) continue;
+      const remoteNote = remoteNoteMap.get(id);
+
+      if (localNote.updated_at === remoteNote.updated_at) {
+        // Same timestamp → treat as identical, keep one copy
+        mergedNotes.push(localNote);
+        continue;
+      }
+
+      const isNewerLocal = localNote.updated_at > remoteNote.updated_at;
+      const newerNote    = isNewerLocal ? localNote  : remoteNote;
+      const olderNote    = isNewerLocal ? remoteNote : localNote;
+
+      const choice = await showConflictDialog({
+        kind: 'note',
+        title: localNote.title || localNote.id,
+        localUpdated:  localNote.updated_at,
+        remoteUpdated: remoteNote.updated_at,
+        isNewerLocal,
+      });
+
+      mergedNotes.push(newerNote);
+      if (choice === 'both') {
+        mergedNotes.push({
+          ...olderNote,
+          id:    newUUID(),
+          title: `[Older copy] ${olderNote.title}`,
+          slug:  `older-copy-${olderNote.slug || olderNote.id}`,
+        });
+      }
+    }
+
+    // ── Citations (keyed by citekey) ─────────────────────────────────────────
+    const localCiteMap  = new Map((localDump.citations  ?? []).map(c => [c.citekey, c]));
+    const remoteCiteMap = new Map((remoteDump.citations ?? []).map(c => [c.citekey, c]));
+
+    for (const [k, c] of localCiteMap)  if (!remoteCiteMap.has(k)) mergedCitations.push(c);
+    for (const [k, c] of remoteCiteMap) if (!localCiteMap.has(k))  mergedCitations.push(c);
+
+    for (const [key, localCite] of localCiteMap) {
+      if (!remoteCiteMap.has(key)) continue;
+      const remoteCite = remoteCiteMap.get(key);
+
+      if (localCite.updated_at === remoteCite.updated_at) {
+        mergedCitations.push(localCite);
+        continue;
+      }
+
+      const isNewerLocal = localCite.updated_at > remoteCite.updated_at;
+      const newerCite    = isNewerLocal ? localCite  : remoteCite;
+      const olderCite    = isNewerLocal ? remoteCite : localCite;
+
+      const choice = await showConflictDialog({
+        kind: 'citation',
+        title: localCite.title || localCite.citekey,
+        localUpdated:  localCite.updated_at,
+        remoteUpdated: remoteCite.updated_at,
+        isNewerLocal,
+      });
+
+      mergedCitations.push(newerCite);
+      if (choice === 'both') {
+        mergedCitations.push({
+          ...olderCite,
+          citekey: `${olderCite.citekey}-old`,
+        });
+      }
+    }
+
+    return {
+      version:     1,
+      exported_at: new Date().toISOString(),
+      backend:     'indexeddb',
+      notes:       mergedNotes,
+      citations:   mergedCitations,
+    };
+  }
+
+  /**
+   * Run the full merge pipeline: compute merged dump (with user dialogs),
+   * write to storage, then refresh both list panels.
+   */
+  async function runMerge(localDump, remoteDump, logEl) {
+    appendLog(logEl, 'Resolving conflicts…');
+    const mergedDump = await performMerge(localDump, remoteDump);
+    await storage.importAll(mergedDump);
+    const { refreshNoteList }     = await import('./notes.js');
+    const { refreshCitationList } = await import('./citations.js');
+    await Promise.all([refreshNoteList(), refreshCitationList()]);
+    const nc = mergedDump.notes.length;
+    const cc = mergedDump.citations.length;
+    appendLog(logEl, `Merge complete: ${nc} note${nc !== 1 ? 's' : ''}, ${cc} citation${cc !== 1 ? 's' : ''}.`);
+    showToast(`Sync complete: ${nc} notes, ${cc} citations.`);
+  }
+
   // ── Shared event wiring ──
 
   function wireEvents(prefix, t) {
@@ -269,8 +448,10 @@ export function initWebRTC(storage, { showToast }) {
     const wrapEl = $(`${prefix}-progress-wrap`);
     const barEl  = $(`${prefix}-progress-bar`);
 
-    t.addEventListener('log',         e => appendLog(logEl, e.message));
-    t.addEventListener('progress',    e => setProgress(wrapEl, barEl, e.sent, e.total));
+    t.addEventListener('log',      e => appendLog(logEl, e.message));
+    t.addEventListener('progress', e => setProgress(wrapEl, barEl, e.sent, e.total));
+
+    // Legacy: respond if the remote uses the old pull_request protocol
     t.addEventListener('pull_request', async () => {
       appendLog(logEl, 'Remote is pulling our data…');
       try {
@@ -281,39 +462,45 @@ export function initWebRTC(storage, { showToast }) {
         showToast('Failed to send data to remote.');
       }
     });
+
+    // New merge-sync: remote initiated — send our data back then merge
+    t.addEventListener('sync_received', async e => {
+      const remoteDump = e.dump;
+      appendLog(logEl, 'Remote started merge sync. Sending local data back…');
+      const syncBtn = $(`${prefix}-sync-btn`);
+      if (syncBtn) syncBtn.disabled = true;
+      try {
+        // Snapshot local state before any merge (push() re-exports internally,
+        // but we need the same snapshot for the merge step below)
+        const localDump = await storage.exportAll();
+        // Respond to the initiator with our pre-merge state
+        await t.push(storage);
+        appendLog(logEl, 'Local data sent. Merging…');
+        await runMerge(localDump, remoteDump, logEl);
+      } catch (err) {
+        appendLog(logEl, 'Merge error: ' + err.message);
+        showToast('Merge failed: ' + err.message);
+      } finally {
+        if (syncBtn) syncBtn.disabled = false;
+      }
+    });
   }
 
-  function wireTransferButtons(prefix, t) {
+  function wireSyncButton(prefix, t) {
     const logEl   = $(`${prefix}-log`);
-    const pushBtn = $(`${prefix}-push-btn`);
-    const pullBtn = $(`${prefix}-pull-btn`);
+    const syncBtn = $(`${prefix}-sync-btn`);
 
-    pushBtn.onclick = async () => {
-      pushBtn.disabled = pullBtn.disabled = true;
+    syncBtn.onclick = async () => {
+      syncBtn.disabled = true;
       try {
-        await t.push(storage);
-        showToast('Push complete — other device has your data!');
+        const { localDump, remoteDump } = await t.sync(storage);
+        appendLog(logEl, 'Both databases received. Merging…');
+        await runMerge(localDump, remoteDump, logEl);
       } catch (err) {
         appendLog(logEl, 'Error: ' + err.message);
-        showToast('Push failed: ' + err.message);
+        showToast('Sync failed: ' + err.message);
       } finally {
-        pushBtn.disabled = pullBtn.disabled = false;
-      }
-    };
-
-    pullBtn.onclick = async () => {
-      pushBtn.disabled = pullBtn.disabled = true;
-      try {
-        const dump = await t.pull(storage);
-        const { refreshNoteList }     = await import('./notes.js');
-        const { refreshCitationList } = await import('./citations.js');
-        await Promise.all([refreshNoteList(), refreshCitationList()]);
-        showToast(`Pulled ${dump.notes.length} notes, ${dump.citations.length} citations!`);
-      } catch (err) {
-        appendLog(logEl, 'Error: ' + err.message);
-        showToast('Pull failed: ' + err.message);
-      } finally {
-        pushBtn.disabled = pullBtn.disabled = false;
+        syncBtn.disabled = false;
       }
     };
   }
@@ -395,7 +582,7 @@ export function initWebRTC(storage, { showToast }) {
       await transfer.acceptAnswer(compressedSdp);
       stopCycler(); // connected — no need to keep cycling
       showHostState('connected');
-      wireTransferButtons('qr-host', transfer);
+      wireSyncButton('qr-host', transfer);
     } catch (err) {
       if (err.message !== 'Cancelled.') {
         appendLog(hostLog, 'Error: ' + err.message);
@@ -486,7 +673,7 @@ export function initWebRTC(storage, { showToast }) {
         .then(() => {
           stopCycler(); // connected — stop cycling
           showJoinState('connected');
-          wireTransferButtons('qr-join', transfer);
+          wireSyncButton('qr-join', transfer);
         })
         .catch(err => {
           stopCycler();
