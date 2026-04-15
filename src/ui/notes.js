@@ -20,6 +20,7 @@
 
 import { createEditor, setEditorContent, getEditorContent } from './editor.js';
 import { createMilkdownEditor } from './milkdown-editor.js';
+import { openAddModal } from './citations.js';
 import { renderFull, extractCitekeys } from '../services/markdown.js';
 import { printNote, themeList } from '../services/pdf.js';
 
@@ -211,6 +212,7 @@ async function mountMilkdown(initialContent) {
       // Citation clicking in WYSIWYG mode: do nothing extra for now.
       // The right preview panel already shows the resolved bibliography.
     },
+    onCreateCitation: (query, onInsert) => openAddModal({ prefillQuery: query, onInsert }),
   });
 }
 
@@ -401,6 +403,7 @@ export async function initNotes(storage, { getCitations } = {}) {
           () => updatePreview(getEditorContent(_editorView)), 600,
         );
       },
+      onCreateCitation: (query, onInsert) => openAddModal({ prefillQuery: query, onInsert }),
     });
   }
 

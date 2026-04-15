@@ -208,17 +208,51 @@
 <div id="add-cite-modal" class="modal-overlay hidden">
   <div class="modal">
     <h2>Add Citation</h2>
-    <p class="modal-hint">Paste a BibTeX entry, DOI, ISBN, or any citation string.</p>
-    <textarea id="add-cite-input" rows="6"
-      placeholder="@article{key,&#10;  title = {...},&#10;  ...&#10;}&#10;&#10;or a DOI: 10.XXXX/XXXX&#10;or an ISBN: 978-..."></textarea>
-    <div id="add-cite-parsed" class="hidden">
-      <h3>Parsed BibTeX (edit before saving):</h3>
-      <textarea id="add-cite-bibtex" rows="10" class="bibtex-textarea"></textarea>
-      <p id="add-cite-warnings" class="warnings hidden"></p>
+
+    <!-- Tab switcher -->
+    <div class="cite-modal-tabs">
+      <button class="cite-modal-tab active" data-pane="search">Search OpenAlex</button>
+      <button class="cite-modal-tab" data-pane="manual">Manual Entry</button>
     </div>
-    <div class="modal-footer">
-      <button id="parse-cite-btn" class="btn-primary">Parse</button>
-      <button id="confirm-cite-btn" class="btn-primary hidden">Save Citation</button>
+
+    <!-- ── Search pane (default) ── -->
+    <div id="cite-pane-search" class="cite-modal-pane">
+      <div class="cite-search-bar">
+        <input type="search" id="cite-openalex-q"
+               placeholder="Search by title, author, or DOI…" autocomplete="off" />
+        <button id="cite-openalex-search-btn" class="btn-primary">Search</button>
+      </div>
+      <p id="cite-search-status" class="modal-hint hidden"></p>
+      <ul id="cite-openalex-results" class="cite-result-list"></ul>
+      <!-- Shown after a result is clicked -->
+      <div id="cite-openalex-preview" class="cite-result-preview hidden">
+        <p id="cite-preview-title" class="cite-preview-title"></p>
+        <p id="cite-preview-meta"  class="cite-preview-meta"></p>
+        <div class="modal-footer">
+          <button id="cite-openalex-save-btn" class="btn-primary">Save Citation</button>
+          <button id="cite-openalex-back-btn" class="btn-ghost">&#8592; Back to results</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Manual entry pane ── -->
+    <div id="cite-pane-manual" class="cite-modal-pane hidden">
+      <p class="modal-hint">Paste a BibTeX entry, DOI, ISBN, or any citation string.</p>
+      <textarea id="add-cite-input" rows="5"
+        placeholder="@article{key,&#10;  title = {...},&#10;  ...&#10;}&#10;&#10;or a DOI: 10.XXXX/XXXX&#10;or an ISBN: 978-..."></textarea>
+      <div id="add-cite-parsed" class="hidden">
+        <h3>Parsed BibTeX (edit before saving):</h3>
+        <textarea id="add-cite-bibtex" rows="8" class="bibtex-textarea"></textarea>
+        <p id="add-cite-warnings" class="warnings hidden"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="parse-cite-btn" class="btn-primary">Parse</button>
+        <button id="confirm-cite-btn" class="btn-primary hidden">Save Citation</button>
+      </div>
+    </div>
+
+    <!-- Always-visible cancel -->
+    <div class="modal-footer cite-modal-cancel-row">
       <button id="cancel-cite-btn" class="btn-ghost">Cancel</button>
     </div>
   </div>
