@@ -11,14 +11,14 @@ served from any web server or GitHub Pages.
 
 ## Tech Stack
 
-| Layer       | Technology                                  |
-|-------------|---------------------------------------------|
-| Bundler     | esbuild (`build.js`)                        |
-| Editor      | CodeMirror 6                                |
-| Markdown    | markdown-it                                 |
-| Storage     | IndexedDB (abstracted behind `StorageBackend`) |
-| Settings    | localStorage                                |
-| Deployment  | Static files (GitHub Pages via Actions)     |
+| Layer       | Technology                                         |
+|-------------|----------------------------------------------------|
+| Bundler     | esbuild (`build.js`)                               |
+| Editor      | CodeMirror 6 (source) + Milkdown (WYSIWYG)         |
+| Markdown    | markdown-it                                        |
+| Storage     | IndexedDB (abstracted behind `StorageBackend`)      |
+| Settings    | localStorage                                       |
+| Deployment  | Static files (GitHub Pages via Actions)            |
 
 ---
 
@@ -33,19 +33,22 @@ philosophy-js/
 │   └── workflows/
 │       └── deploy.yml      # GitHub Pages CI/CD
 └── src/
-    ├── main.js             # Boot, tab-switching, import/export, settings
-    ├── app.css             # All UI styles (includes mobile responsive)
+    ├── main.js             # Boot, tab-switching, import/export, settings, theme
+    ├── app.css             # All UI styles (light + dark theme, mobile responsive)
     ├── ui/
-    │   ├── notes.js        # Notes list + editor
-    │   ├── citations.js    # Citations list + editor
+    │   ├── notes.js        # Notes list + dual-mode editor (CodeMirror / Milkdown)
+    │   ├── citations.js    # Citations list + editor + Add Citation modal
     │   ├── editor.js       # CodeMirror 6 setup + autocomplete
+    │   ├── milkdown-editor.js          # Milkdown WYSIWYG editor setup
+    │   ├── milkdown-citation-plugin.js # [@citekey] → atomic chip in WYSIWYG
+    │   ├── milkdown-notelink-plugin.js # [[note:slug]] → atomic chip in WYSIWYG
     │   ├── search.js       # Global full-text search
-    │   └── bluetooth.js    # Bluetooth transfer UI
+    │   └── webrtc.js       # QR-code-based peer-to-peer sync UI
     ├── services/
     │   ├── markdown.js     # markdown-it + custom citation/link rules
     │   ├── bibtex.js       # BibTeX/DOI/ISBN parsing pipeline
+    │   ├── openalex.js     # OpenAlex API client (academic search)
     │   ├── pdf.js          # Print window + theme injection
-    │   ├── bluetooth.js    # Web Bluetooth GATT transfer protocol
     │   └── print-themes/   # CSS files imported as text for print windows
     │       ├── academic.css
     │       ├── essay.css
@@ -61,7 +64,7 @@ philosophy-js/
 ## Build & Dev
 
 ```bash
-npm install          # install esbuild + codemirror + markdown-it
+npm install          # install esbuild + codemirror + milkdown + markdown-it
 npm run build        # production → dist/
 npm run dev          # watch mode with source maps → dist/
 ```
@@ -131,9 +134,30 @@ updated_at  : ISO 8601
 `activateTab(tab)` toggles `.active` on `.tab-btn` elements and `.hidden`
 on `.list-panel` elements. Active tab = `notes | citations | search`.
 
-### Auto-save (notes.js / citations.js)
-A 2-second debounce timer triggers `saveNote()` after the user stops typing.
-`Ctrl+S` forces an immediate save. Both call `storage.saveNote(note)`.
+### Dual-mode note editor (notes.js)
+The note editor supports two modes toggled by `#editor-mode-btn`:
+- **CodeMirror** (default) — plain-text source with Markdown syntax
+  highlighting, `[[` / `[@` autocomplete.
+- **Milkdown** — rich-text WYSIWYG; `[[note:slug|Label]]` and `[@citekey]`
+  are rendered as atomic inline chips in the editor.
+
+The current mode is persisted to localStorage. Switching modes transfers
+content between editors without data loss.
+
+### Autosave (notes.js)
+Both editor modes use a **throttled autosave** pattern rather than a plain
+debounce. State: `_dirty` (boolean), `_lastSavedAt` (timestamp),
+`_autoSaveTimer` (handle).
+
+On every edit, `markDirty()` is called. It schedules a save for
+`max(0, AUTO_SAVE_INTERVAL − elapsed_since_last_save)` ms. If a timer is
+already pending, it does nothing. After each save (auto or manual),
+`_dirty` is reset and `_lastSavedAt` is updated. This guarantees a save
+fires at most once per `AUTO_SAVE_INTERVAL` (3 s) even during continuous
+typing, while avoiding the "never saves while typing" problem of pure
+debounce. `Ctrl+S` / Save button bypass the timer and save immediately.
+
+Preview refresh runs on an independent 600 ms debounce.
 
 ### Markdown inline extensions (markdown.js)
 - `[[note:slug|Label]]` → `<a class="note-link">` (rendered in preview)
@@ -152,6 +176,22 @@ Abstract class with methods:
 
 ---
 
+## Dark Mode
+
+Dark mode is toggled via **Settings → Dark mode** checkbox. The preference
+is stored in localStorage (`darkMode: true/false`).
+
+`applyTheme(darkMode)` in `main.js` sets `document.documentElement.dataset.theme`
+to `"dark"` or `""`. The CSS in `app.css` defines a `[data-theme="dark"]`
+block that overrides all `--color-*` custom properties. Because CodeMirror's
+theme in `editor.js` references `var(--color-surface2)`, `var(--color-border)`,
+and `var(--color-cm-activeline)`, the editor adapts automatically.
+
+QR canvas backgrounds are intentionally kept `#fff` regardless of theme since
+QR codes require a white background to be scannable.
+
+---
+
 ## Mobile Layout
 
 At `≤ 768px` the five-column grid collapses to a single-column view.
@@ -161,45 +201,55 @@ A **bottom navigation bar** (`#mobile-nav`) with four buttons appears:
 - **Preview** — shows the right panel (markdown preview / citation details)
 - **More** — shows the toolbar actions (export, import, settings)
 
-The active panel is tracked via CSS class `mobile-active-panel` on `#main`.
+The active panel is tracked via `data-mobile-panel` attribute on `#main`.
 Resize handles are hidden on mobile (`display: none`).
 The fixed top toolbar hides its tab-nav and right buttons on mobile — those
 actions move to the bottom bar.
 
+**Auto-navigate:** When a note is opened (from list click or search), the
+`mobile-open-edit` window event is dispatched. `initMobileNav()` in
+`main.js` listens for this and switches to the `edit` panel automatically,
+so the user lands in the editor without an extra tap.
+
 ---
 
-## Bluetooth Transfer
+## QR / WebRTC Sync
 
-Feature file: `src/services/bluetooth.js` + `src/ui/bluetooth.js`
+Feature file: `src/ui/webrtc.js`
 
-### Protocol overview
-Uses the **Web Bluetooth API** (Chrome/Edge, HTTPS required).
+Uses **WebRTC** with a QR-code-based signalling channel (no server).
 
-Custom GATT service UUID: `a1b2c3d4-e5f6-a7b8-c9d0-e1f2a3b4c5d6`
+**Protocol:**
+1. Host device exports its database as JSON, encodes the WebRTC offer as a
+   sequence of QR codes.
+2. Join device scans the offer QR codes, creates an answer QR code sequence.
+3. Host scans the answer QR codes to complete the WebRTC handshake.
+4. Once the peer DataChannel is open, both devices exchange full database
+   dumps and merge them with conflict resolution.
 
-Characteristics:
-| UUID suffix | Name        | Properties       | Description                          |
-|-------------|-------------|------------------|--------------------------------------|
-| `...c5d7`   | META        | read             | JSON: `{ size, chunks, version }`   |
-| `...c5d8`   | CHUNK       | read / write     | 512-byte data chunk                  |
-| `...c5d9`   | OFFSET      | write            | uint32 chunk index to seek to        |
-| `...c5da`   | CONTROL     | write / notify   | 0x01=start, 0x02=ack, 0xFF=done     |
+**Conflict resolution:** When a note or citation exists on both devices with
+different `updated_at` timestamps, the user is shown a dialog to choose
+which version to keep.
 
-Because browsers currently **cannot act as a GATT peripheral**, this feature
-implements the **central (client) role only** and requires the remote device
-to expose the custom GATT service. On Android, Chrome Canary with the
-"Experimental Web Platform Features" flag enables peripheral simulation.
+The QR tab in the toolbar opens `#qr-modal`. The UI uses `.bt-*` CSS classes.
 
-For transfer between two desktop browsers, users should use the
-JSON **Export / Import** flow instead, which has no browser restrictions.
+---
 
-### UI flow
-1. User clicks **Bluetooth** button in toolbar → Bluetooth modal opens.
-2. **Send tab**: calls `storage.exportAll()`, encodes to JSON bytes, then
-   `navigator.bluetooth.requestDevice()` to scan for the GATT service.
-   Connects and writes chunks via the CHUNK characteristic.
-3. **Receive tab**: same scan, connects, reads META then reads all chunks
-   in order, reconstructs JSON, calls `storage.importAll()`.
+## Add Citation Modal
+
+The **Add Citation** modal (`#add-cite-modal`) has two panes:
+
+1. **Search pane** — queries the **OpenAlex** API (`src/services/openalex.js`)
+   by title, author, or DOI. Results are displayed in a list; clicking one
+   shows a preview and allows saving.
+
+2. **Manual Entry pane** — accepts raw BibTeX, a DOI (fetched via CrossRef),
+   an ISBN (fetched via OpenLibrary), or free-text. Parsing is done by
+   `parseCitation()` in `src/services/bibtex.js`.
+
+The modal can be opened from the Citations tab ("+ Citation" button) or
+inline from the note editor when the user types `[@` and picks
+"+ Create new citation" from the autocomplete.
 
 ---
 
@@ -224,8 +274,10 @@ all asset links are relative (`app.css`, `bundle.js`).
 ```json
 {
   "author":             "",
+  "darkMode":           false,
   "leftPanelWidth":     280,
   "rightPanelWidth":    360,
+  "editorMode":         "codemirror",
   "crossrefEnabled":    true,
   "openlibraryEnabled": true
 }
@@ -244,7 +296,7 @@ all asset links are relative (`app.css`, `bundle.js`).
    queued request. Do not await unrelated async operations inside a
    transaction; open a new one instead.
 
-3. **HTTPS for Web Bluetooth + crypto.randomUUID** — Both APIs require a
+3. **HTTPS for WebRTC + crypto.randomUUID** — Both APIs require a
    secure context. `localhost` counts as secure for development.
    GitHub Pages serves over HTTPS automatically.
 
@@ -256,3 +308,12 @@ all asset links are relative (`app.css`, `bundle.js`).
    and become JS string variables. They are injected into a `<style>` tag
    inside a new `window.open()` popup for printing. Do NOT add `*.css` to
    JS imports unless you intend this behaviour.
+
+6. **Dark mode + CodeMirror** — The CM editor theme in `editor.js` uses
+   CSS custom properties (`var(--color-surface2)` etc.) rather than hardcoded
+   hex values, so it adapts automatically when `[data-theme="dark"]` is set
+   on `<html>`. Syntax highlighting colours (from `defaultHighlightStyle`)
+   do not change with dark mode.
+
+7. **QR canvas background** — Always `#fff` regardless of theme. QR scanners
+   require a light background; do not apply `var(--color-bg)` to the canvas.

@@ -18,6 +18,7 @@
   --color-success:   #2e7d32;
   --color-danger:    #c62828;
   --color-warn:      #bf6010;
+  --color-cm-activeline: rgba(0,0,0,0.035);
 
   --toolbar-h:       48px;
   --left-w:          280px;
@@ -26,6 +27,22 @@
   --font-ui:         "Inter", "Segoe UI", system-ui, sans-serif;
   --font-mono:       "DejaVu Sans Mono", "Consolas", "Menlo", monospace;
   --transition:      150ms ease;
+}
+
+/* ── Dark mode ────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --color-bg:        #1c1a18;
+  --color-surface:   #252320;
+  --color-surface2:  #302e2a;
+  --color-border:    #403d38;
+  --color-text:      #e6e1d9;
+  --color-text-muted:#8c8278;
+  --color-accent:    #6ea8e0;
+  --color-accent2:   #b07ee8;
+  --color-success:   #4caf50;
+  --color-danger:    #ef5350;
+  --color-warn:      #f4a261;
+  --color-cm-activeline: rgba(255,255,255,0.04);
 }
 
 html, body {
@@ -699,7 +716,7 @@ html, body {
 .qr-canvas-wrap canvas {
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: #fff; /* QR codes require white background — do not theme */
   max-width: 100%;
 }
 .qr-video {

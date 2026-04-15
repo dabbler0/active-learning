@@ -126,8 +126,9 @@ const editorTheme = EditorView.theme({
     overflow:   'auto',
   },
   '.cm-line': { paddingLeft: '0' },
-  '.cm-activeLine': { backgroundColor: 'rgba(0,0,0,0.04)' },
-  '.cm-gutters': { backgroundColor: '#ece9e3', borderRight: '1px solid #d0cbc2' },
+  // Use CSS variables so colors adapt to dark mode (defined in app.css)
+  '.cm-activeLine': { backgroundColor: 'var(--color-cm-activeline, rgba(0,0,0,0.035))' },
+  '.cm-gutters': { backgroundColor: 'var(--color-surface2)', borderRight: '1px solid var(--color-border)' },
   // Autocomplete popup
   '.cm-tooltip.cm-tooltip-autocomplete': {
     fontFamily: '"DejaVu Sans Mono", "Consolas", "Menlo", monospace',
@@ -154,26 +155,19 @@ const editorTheme = EditorView.theme({
  * @returns {EditorView}
  */
 export function createEditor(mount, { initialDoc = '', getNotes, getCitations, onSave, onUpdate, onCreateCitation }) {
-  let saveTimer = null;
-
   const saveExtension = EditorView.updateListener.of(update => {
     if (!update.docChanged) return;
 
-    // Word count
+    // Word count + dirty notification (autosave is managed by notes.js)
     const text = update.state.doc.toString();
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
     onUpdate?.(words);
-
-    // Debounced auto-save
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => onSave?.(text), 2000);
   });
 
   const ctrlS = keymap.of([{
     key: 'Ctrl-s',
     mac: 'Cmd-s',
     run(view) {
-      clearTimeout(saveTimer);
       onSave?.(view.state.doc.toString());
       return true;
     },

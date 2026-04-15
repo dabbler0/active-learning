@@ -164,11 +164,18 @@ function importData() {
   input.click();
 }
 
+// ── Theme ──────────────────────────────────────────────────────────────────
+
+function applyTheme(darkMode) {
+  document.documentElement.dataset.theme = darkMode ? 'dark' : '';
+}
+
 // ── Settings modal ─────────────────────────────────────────────────────────
 
 function openSettings() {
   const s = loadSettings();
   document.getElementById('s-author').value = s.author ?? '';
+  document.getElementById('s-dark-mode').checked    = s.darkMode            === true;
   document.getElementById('s-crossref').checked     = s.crossrefEnabled     !== false;
   document.getElementById('s-openlibrary').checked  = s.openlibraryEnabled  !== false;
   document.getElementById('settings-modal')?.classList.remove('hidden');
@@ -181,9 +188,11 @@ function closeSettings() {
 function applySettings() {
   const next = saveSettings({
     author:             document.getElementById('s-author').value.trim(),
+    darkMode:           document.getElementById('s-dark-mode').checked,
     crossrefEnabled:    document.getElementById('s-crossref').checked,
     openlibraryEnabled: document.getElementById('s-openlibrary').checked,
   });
+  applyTheme(next.darkMode);
   updateCitationSettings({
     crossrefEnabled:    next.crossrefEnabled,
     openlibraryEnabled: next.openlibraryEnabled,
@@ -208,6 +217,9 @@ function showToast(msg) {
 
 async function boot() {
   const settings = loadSettings();
+
+  // ── Apply theme immediately (before any rendering) ──
+  applyTheme(settings.darkMode === true);
 
   // ── Initialise modules ──
   await Promise.all([
