@@ -266,6 +266,13 @@ export class WebRTCTransfer extends EventTarget {
         this.dispatchEvent(new Event('pull_request'));
         break;
 
+      case 'sync_start':
+        this._recvMeta   = { ...msg, _sync: true };
+        this._recvChunks = [];
+        this._log(`Receiving sync data: ${msg.chunks} chunks (${msg.total} bytes)…`);
+        this._progress(0, msg.chunks);
+        break;
+
       case 'push_start':
         this._recvMeta   = msg;
         this._recvChunks = [];
@@ -278,7 +285,9 @@ export class WebRTCTransfer extends EventTarget {
         this._progress(this._recvChunks.length, this._recvMeta?.chunks ?? 1);
         break;
 
+      case 'sync_end':
       case 'push_end': {
+        const isSyncRequest = this._recvMeta?._sync ?? false;
         const total    = this._recvMeta?.total ?? 0;
         const allBytes = new Uint8Array(total);
         let pos = 0;
@@ -289,8 +298,18 @@ export class WebRTCTransfer extends EventTarget {
         }
         let dump;
         try { dump = JSON.parse(dec.decode(allBytes)); }
-        catch { this._recvReject?.(new Error('Received data is not valid JSON.')); return; }
-        this._recvResolve?.(dump);
+        catch {
+          const err = new Error('Received data is not valid JSON.');
+          if (isSyncRequest) this.dispatchEvent(Object.assign(new Event('sync_error'), { error: err }));
+          else this._recvReject?.(err);
+          return;
+        }
+        if (isSyncRequest) {
+          // Remote initiated merge sync — fire event so the UI can respond + merge
+          this.dispatchEvent(Object.assign(new Event('sync_received'), { dump }));
+        } else {
+          this._recvResolve?.(dump);
+        }
         break;
       }
     }
@@ -368,6 +387,52 @@ export class WebRTCTransfer extends EventTarget {
    */
   async respondToPull(storage) {
     await this.push(storage);
+  }
+
+  /**
+   * Initiate a merge sync: send local data to the remote with a sync_start
+   * message, then wait for the remote to respond with its own push.
+   * Returns both the local snapshot (at time of sync) and the remote dump,
+   * so the caller can perform conflict-aware merging.
+   *
+   * @param {import('../storage/interface.js').StorageBackend} storage
+   * @returns {Promise<{ localDump: object, remoteDump: object }>}
+   */
+  async sync(storage) {
+    this._assertConnected();
+    this._setState('transferring');
+    this._log('Exporting local data for merge sync…');
+
+    const localDump = await storage.exportAll();
+    const bytes     = enc.encode(JSON.stringify(localDump));
+    const parts     = splitBytes(bytes);
+
+    // Prepare to receive the remote's response (sent as push_start/chunk/push_end)
+    const remoteDumpPromise = new Promise((res, rej) => {
+      this._recvResolve = res;
+      this._recvReject  = rej;
+    });
+
+    this._log(`Sending ${bytes.length} bytes in ${parts.length} chunks…`);
+    this._channel.send(JSON.stringify({
+      type: 'sync_start', total: bytes.length, chunks: parts.length,
+    }));
+    this._progress(0, parts.length);
+
+    for (let i = 0; i < parts.length; i++) {
+      if (this._aborted) throw new Error('Transfer aborted.');
+      this._channel.send(JSON.stringify({ type: 'chunk', i, d: bytesToB64(parts[i]) }));
+      this._progress(i + 1, parts.length);
+      if ((i + 1) % 10 === 0) this._log(`Sent ${i + 1}/${parts.length} chunks…`);
+    }
+
+    this._channel.send(JSON.stringify({ type: 'sync_end' }));
+    this._log('Local data sent. Waiting for remote data…');
+
+    const remoteDump = await remoteDumpPromise;
+    this._log(`Received: ${remoteDump.notes?.length ?? 0} notes, ${remoteDump.citations?.length ?? 0} citations.`);
+    this._setState('connected');
+    return { localDump, remoteDump };
   }
 
   // ── Cleanup ───────────────────────────────────────────────────────────────
