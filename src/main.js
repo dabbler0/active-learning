@@ -174,7 +174,8 @@ function applyTheme(darkMode) {
 
 function openSettings() {
   const s = loadSettings();
-  document.getElementById('s-author').value = s.author ?? '';
+  document.getElementById('s-author').value         = s.author         ?? '';
+  document.getElementById('s-crossref-email').value = s.crossrefEmail  ?? '';
   document.getElementById('s-dark-mode').checked    = s.darkMode            === true;
   document.getElementById('s-crossref').checked     = s.crossrefEnabled     !== false;
   document.getElementById('s-openlibrary').checked  = s.openlibraryEnabled  !== false;
@@ -188,6 +189,7 @@ function closeSettings() {
 function applySettings() {
   const next = saveSettings({
     author:             document.getElementById('s-author').value.trim(),
+    crossrefEmail:      document.getElementById('s-crossref-email').value.trim(),
     darkMode:           document.getElementById('s-dark-mode').checked,
     crossrefEnabled:    document.getElementById('s-crossref').checked,
     openlibraryEnabled: document.getElementById('s-openlibrary').checked,
@@ -196,6 +198,7 @@ function applySettings() {
   updateCitationSettings({
     crossrefEnabled:    next.crossrefEnabled,
     openlibraryEnabled: next.openlibraryEnabled,
+    crossrefEmail:      next.crossrefEmail ?? '',
   });
   closeSettings();
   showToast('Settings saved');
@@ -229,6 +232,7 @@ async function boot() {
     initCitations(storage, {
       crossrefEnabled:    settings.crossrefEnabled !== false,
       openlibraryEnabled: settings.openlibraryEnabled !== false,
+      crossrefEmail:      settings.crossrefEmail ?? '',
     }),
   ]);
 

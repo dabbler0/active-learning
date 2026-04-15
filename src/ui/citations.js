@@ -5,7 +5,7 @@
  *  - Left-panel citation list with search filter
  *  - Citation detail/editor view (right)
  *  - "Add Citation" modal with two panes:
- *      • Search (default) — queries OpenAlex by title/author/DOI
+ *      • Search (default) — queries CrossRef by title/author/keyword
  *      • Manual Entry     — accepts BibTeX / DOI / ISBN / free-text
  *
  * openAddModal() is exported so the note editor can open it inline when
@@ -15,20 +15,20 @@
  */
 
 import { parseCitation } from '../services/bibtex.js';
-import { searchOpenAlex, openAlexToCitation } from '../services/openalex.js';
+import { searchCrossRef, crossRefToCitation } from '../services/crossref.js';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
 let _storage     = null;
 let _currentCite = null;
 let _citations   = [];
-let _settings    = { crossrefEnabled: true, openlibraryEnabled: true };
+let _settings    = { crossrefEnabled: true, openlibraryEnabled: true, crossrefEmail: '' };
 
 // Modal state
-let _parsedResult         = null;      // manual-entry parsed result
-let _openAlexResults      = [];        // last OpenAlex search results
-let _selectedOpenAlexWork = null;      // result the user clicked on
-let _insertCallback       = null;      // set when opened from the note editor
+let _parsedResult          = null;     // manual-entry parsed result
+let _crossRefResults       = [];       // last CrossRef search results
+let _selectedCrossRefWork  = null;     // result the user clicked on
+let _insertCallback        = null;     // set when opened from the note editor
 
 const $ = id => document.getElementById(id);
 
@@ -184,13 +184,13 @@ export function openAddModal({ prefillQuery = '', onInsert = null } = {}) {
   activateCitePane('search');
 
   // Reset search pane
-  const q = $('cite-openalex-q');
+  const q = $('cite-search-q');
   if (q) q.value = prefillQuery;
   $('cite-search-status')?.classList.add('hidden');
-  if ($('cite-openalex-results')) $('cite-openalex-results').innerHTML = '';
-  $('cite-openalex-preview')?.classList.add('hidden');
-  _openAlexResults = [];
-  _selectedOpenAlexWork = null;
+  if ($('cite-search-results')) $('cite-search-results').innerHTML = '';
+  $('cite-search-preview')?.classList.add('hidden');
+  _crossRefResults = [];
+  _selectedCrossRefWork = null;
 
   // Reset manual pane
   if ($('add-cite-input'))    $('add-cite-input').value = '';
@@ -204,7 +204,7 @@ export function openAddModal({ prefillQuery = '', onInsert = null } = {}) {
 
   // If a query was supplied, kick off the search immediately
   if (prefillQuery) {
-    runOpenAlexSearch();
+    runCrossRefSearch();
   } else {
     q?.focus();
   }
@@ -245,32 +245,32 @@ async function finalizeSave(citekey) {
   }
 }
 
-// ── Modal — OpenAlex search pane ──────────────────────────────────────────
+// ── Modal — CrossRef search pane ──────────────────────────────────────────
 
-async function runOpenAlexSearch() {
-  const query = $('cite-openalex-q')?.value.trim();
+async function runCrossRefSearch() {
+  const query = $('cite-search-q')?.value.trim();
   if (!query) return;
 
   const statusEl  = $('cite-search-status');
-  const resultsEl = $('cite-openalex-results');
-  const searchBtn = $('cite-openalex-search-btn');
+  const resultsEl = $('cite-search-results');
+  const searchBtn = $('cite-search-btn');
 
-  if (statusEl)  { statusEl.textContent = 'Searching OpenAlex…'; statusEl.classList.remove('hidden'); }
+  if (statusEl)  { statusEl.textContent = 'Searching CrossRef…'; statusEl.classList.remove('hidden'); }
   if (resultsEl) resultsEl.innerHTML = '';
-  $('cite-openalex-preview')?.classList.add('hidden');
-  _selectedOpenAlexWork = null;
+  $('cite-search-preview')?.classList.add('hidden');
+  _selectedCrossRefWork = null;
   if (searchBtn) searchBtn.disabled = true;
 
   try {
-    _openAlexResults = await searchOpenAlex(query);
+    _crossRefResults = await searchCrossRef(query, 10, _settings.crossrefEmail ?? '');
 
-    if (!_openAlexResults.length) {
+    if (!_crossRefResults.length) {
       if (statusEl) { statusEl.textContent = 'No results found. Try a different query.'; statusEl.classList.remove('hidden'); }
       return;
     }
 
     if (statusEl) statusEl.classList.add('hidden');
-    renderOpenAlexResults();
+    renderCrossRefResults();
   } catch (err) {
     if (statusEl) { statusEl.textContent = `Search failed: ${err.message}`; statusEl.classList.remove('hidden'); }
   } finally {
@@ -278,70 +278,66 @@ async function runOpenAlexSearch() {
   }
 }
 
-function renderOpenAlexResults() {
-  const ul = $('cite-openalex-results');
+function renderCrossRefResults() {
+  const ul = $('cite-search-results');
   if (!ul) return;
   ul.innerHTML = '';
 
-  _openAlexResults.forEach(work => {
+  _crossRefResults.forEach(work => {
     const li = document.createElement('li');
     li.className = 'cite-result-item';
 
-    const surnames = (work.authorships ?? []).slice(0, 3)
-      .map(a => {
-        const name = a.author?.display_name ?? '';
-        const parts = name.split(',');
-        return parts.length > 1 ? parts[0].trim() : (name.split(' ').pop() ?? name);
-      })
+    const authors = (work.author ?? []).slice(0, 3)
+      .map(a => a.family ?? a.name ?? '')
       .filter(Boolean);
-    const authorStr = surnames.join(', ') + ((work.authorships?.length ?? 0) > 3 ? ' et al.' : '');
-    const yr      = work.publication_year ?? '';
-    const journal = work.primary_location?.source?.display_name ?? '';
+    const authorStr = authors.join(', ') + ((work.author?.length ?? 0) > 3 ? ' et al.' : '');
+    const yr        = work.issued?.['date-parts']?.[0]?.[0] ?? '';
+    const journal   = work['container-title']?.[0] ?? '';
     const metaParts = [authorStr + (yr ? ` (${yr})` : ''), journal].filter(Boolean);
 
     li.innerHTML = `
-      <span class="cite-result-title">${escHtml(work.title ?? 'Untitled')}</span>
+      <span class="cite-result-title">${escHtml(work.title?.[0] ?? 'Untitled')}</span>
       <span class="cite-result-meta">${escHtml(metaParts.join(' · '))}</span>
     `;
-    li.addEventListener('click', () => selectOpenAlexWork(work, li));
+    li.addEventListener('click', () => selectCrossRefWork(work, li));
     ul.appendChild(li);
   });
 }
 
-function selectOpenAlexWork(work, liEl) {
-  _selectedOpenAlexWork = work;
+function selectCrossRefWork(work, liEl) {
+  _selectedCrossRefWork = work;
 
   // Highlight
-  $('cite-openalex-results')?.querySelectorAll('.cite-result-item').forEach(el => {
+  $('cite-search-results')?.querySelectorAll('.cite-result-item').forEach(el => {
     el.classList.remove('active');
   });
   liEl.classList.add('active');
 
   // Show preview
-  const previewEl = $('cite-openalex-preview');
+  const previewEl = $('cite-search-preview');
   if (!previewEl) return;
 
-  const authors = (work.authorships ?? [])
-    .map(a => a.author?.display_name ?? '')
+  const authors = (work.author ?? [])
+    .map(a => (a.family && a.given) ? `${a.given} ${a.family}` : (a.family ?? a.name ?? ''))
     .filter(Boolean);
   const authorStr = authors.slice(0, 3).join('; ') + (authors.length > 3 ? ' et al.' : '');
-  const yr      = work.publication_year ?? '';
-  const journal = work.primary_location?.source?.display_name ?? '';
+  const yr        = work.issued?.['date-parts']?.[0]?.[0] ?? '';
+  const journal   = work['container-title']?.[0] ?? '';
   const metaParts = [authorStr, yr ? String(yr) : '', journal].filter(Boolean);
 
   const titleEl = $('cite-preview-title');
   const metaEl  = $('cite-preview-meta');
-  if (titleEl) titleEl.textContent = work.title ?? 'Untitled';
+  if (titleEl) titleEl.textContent = work.title?.[0] ?? 'Untitled';
   if (metaEl)  metaEl.textContent  = metaParts.join(' · ');
 
   previewEl.classList.remove('hidden');
 }
 
-async function saveOpenAlexWork() {
-  if (!_selectedOpenAlexWork) return;
+async function saveCrossRefWork() {
+  if (!_selectedCrossRefWork) return;
 
   const existingKeys = new Set(_citations.map(c => c.citekey));
-  const citation = openAlexToCitation(_selectedOpenAlexWork, existingKeys);
+  const citation = crossRefToCitation(_selectedCrossRefWork, existingKeys);
 
   await _storage.saveCitation(citation);
   await finalizeSave(citation.citekey);
@@ -420,6 +416,7 @@ function showToast(msg) {
  * @param {object} [settings]
  * @param {boolean} [settings.crossrefEnabled]
  * @param {boolean} [settings.openlibraryEnabled]
+ * @param {string}  [settings.crossrefEmail]
  */
 export async function initCitations(storage, settings = {}) {
   _storage  = storage;
@@ -440,17 +437,17 @@ export async function initCitations(storage, settings = {}) {
   });
 
   // ── Modal — search pane ──
-  $('cite-openalex-search-btn')?.addEventListener('click', runOpenAlexSearch);
-  $('cite-openalex-q')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') runOpenAlexSearch();
+  $('cite-search-btn')?.addEventListener('click', runCrossRefSearch);
+  $('cite-search-q')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') runCrossRefSearch();
   });
-  $('cite-openalex-save-btn')?.addEventListener('click', saveOpenAlexWork);
-  $('cite-openalex-back-btn')?.addEventListener('click', () => {
-    $('cite-openalex-preview')?.classList.add('hidden');
-    $('cite-openalex-results')?.querySelectorAll('.cite-result-item').forEach(el => {
+  $('cite-search-save-btn')?.addEventListener('click', saveCrossRefWork);
+  $('cite-search-back-btn')?.addEventListener('click', () => {
+    $('cite-search-preview')?.classList.add('hidden');
+    $('cite-search-results')?.querySelectorAll('.cite-result-item').forEach(el => {
       el.classList.remove('active');
     });
-    _selectedOpenAlexWork = null;
+    _selectedCrossRefWork = null;
   });
 
   // ── Modal — manual pane ──
