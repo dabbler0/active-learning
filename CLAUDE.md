@@ -47,7 +47,7 @@ philosophy-js/
     ├── services/
     │   ├── markdown.js     # markdown-it + custom citation/link rules
     │   ├── bibtex.js       # BibTeX/DOI/ISBN parsing pipeline
-    │   ├── openalex.js     # OpenAlex API client (academic search)
+    │   ├── crossref.js     # CrossRef API client (keyword search for citations)
     │   ├── pdf.js          # Print window + theme injection
     │   └── print-themes/   # CSS files imported as text for print windows
     │       ├── academic.css
@@ -239,9 +239,10 @@ The QR tab in the toolbar opens `#qr-modal`. The UI uses `.bt-*` CSS classes.
 
 The **Add Citation** modal (`#add-cite-modal`) has two panes:
 
-1. **Search pane** — queries the **OpenAlex** API (`src/services/openalex.js`)
-   by title, author, or DOI. Results are displayed in a list; clicking one
-   shows a preview and allows saving.
+1. **Search pane** — queries the **CrossRef** API (`src/services/crossref.js`)
+   by title, author, or keyword. Results are displayed in a list; clicking one
+   shows a preview and allows saving. Supports CrossRef's polite pool via a
+   user-configured email address (Settings → CrossRef email).
 
 2. **Manual Entry pane** — accepts raw BibTeX, a DOI (fetched via CrossRef),
    an ISBN (fetched via OpenLibrary), or free-text. Parsing is done by
@@ -274,6 +275,7 @@ all asset links are relative (`app.css`, `bundle.js`).
 ```json
 {
   "author":             "",
+  "crossrefEmail":      "",
   "darkMode":           false,
   "leftPanelWidth":     280,
   "rightPanelWidth":    360,
@@ -282,6 +284,10 @@ all asset links are relative (`app.css`, `bundle.js`).
   "openlibraryEnabled": true
 }
 ```
+
+`crossrefEmail` — when set, is passed as the `mailto` query parameter in
+CrossRef API requests, placing the client in CrossRef's polite pool for
+faster and more reliable responses.
 
 ---
 

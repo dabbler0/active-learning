@@ -87,7 +87,7 @@
       <div id="mk-editor-mount" class="mk-mount hidden"></div>
 
       <div class="editor-footer">
-        <span id="word-count">0 words</span>
+        <span id="word-count">0 words</span><span id="save-indicator" class="save-indicator"></span>
         <div class="editor-actions">
           <button id="delete-note-btn" class="btn-ghost btn-danger" title="Delete note">Delete</button>
           <button id="save-btn" class="btn-primary">Save</button>
@@ -211,26 +211,26 @@
 
     <!-- Tab switcher -->
     <div class="cite-modal-tabs">
-      <button class="cite-modal-tab active" data-pane="search">Search OpenAlex</button>
+      <button class="cite-modal-tab active" data-pane="search">Search CrossRef</button>
       <button class="cite-modal-tab" data-pane="manual">Manual Entry</button>
     </div>
 
     <!-- ── Search pane (default) ── -->
     <div id="cite-pane-search" class="cite-modal-pane">
       <div class="cite-search-bar">
-        <input type="search" id="cite-openalex-q"
-               placeholder="Search by title, author, or DOI…" autocomplete="off" />
-        <button id="cite-openalex-search-btn" class="btn-primary">Search</button>
+        <input type="search" id="cite-search-q"
+               placeholder="Search by title, author, or keyword…" autocomplete="off" />
+        <button id="cite-search-btn" class="btn-primary">Search</button>
       </div>
       <p id="cite-search-status" class="modal-hint hidden"></p>
-      <ul id="cite-openalex-results" class="cite-result-list"></ul>
+      <ul id="cite-search-results" class="cite-result-list"></ul>
       <!-- Shown after a result is clicked -->
-      <div id="cite-openalex-preview" class="cite-result-preview hidden">
+      <div id="cite-search-preview" class="cite-result-preview hidden">
         <p id="cite-preview-title" class="cite-preview-title"></p>
         <p id="cite-preview-meta"  class="cite-preview-meta"></p>
         <div class="modal-footer">
-          <button id="cite-openalex-save-btn" class="btn-primary">Save Citation</button>
-          <button id="cite-openalex-back-btn" class="btn-ghost">&#8592; Back to results</button>
+          <button id="cite-search-save-btn" class="btn-primary">Save Citation</button>
+          <button id="cite-search-back-btn" class="btn-ghost">&#8592; Back to results</button>
         </div>
       </div>
     </div>
@@ -269,6 +269,10 @@
     <div class="setting-row">
       <label for="s-dark-mode">Dark mode</label>
       <input type="checkbox" id="s-dark-mode" />
+    </div>
+    <div class="setting-row">
+      <label for="s-crossref-email">CrossRef email (polite pool)</label>
+      <input type="email" id="s-crossref-email" placeholder="your@email.com" />
     </div>
     <div class="setting-row">
       <label>CrossRef lookup (DOI → metadata)</label>

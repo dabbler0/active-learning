@@ -311,7 +311,7 @@ async function saveCurrentNote(body) {
   const isNew = !_currentNote?.id;
   _currentNote = saved;
 
-  showToast('Saved');
+  showSaveIndicator();
   $('word-count').textContent = `${wordCount(saved.body)} words`;
   refreshCitationsCache(); // keep Milkdown autocomplete fresh
   await refreshList($('note-search').value);
@@ -382,6 +382,20 @@ async function printCurrentNote() {
 
   const html = renderFull(body, citationMap, 'authoryear');
   printNote(html, title, themeId, author);
+}
+
+// ── Save indicator (inline, next to word count) ────────────────────────────
+
+let _saveIndicatorTimer = null;
+function showSaveIndicator() {
+  const el = $('save-indicator');
+  if (!el) return;
+  el.textContent = '· Saved';
+  el.classList.add('visible');
+  clearTimeout(_saveIndicatorTimer);
+  _saveIndicatorTimer = setTimeout(() => {
+    el.classList.remove('visible');
+  }, 2000);
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────
